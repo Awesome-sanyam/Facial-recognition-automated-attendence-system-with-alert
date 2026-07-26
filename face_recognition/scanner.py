@@ -14,7 +14,8 @@ django.setup()
 from core.models import Student, AttendanceRecord
 
 # --- Facial Recognition Setup ---
-KNOWN_FACES_DIR = "known_faces"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+KNOWN_FACES_DIR = os.path.join(BASE_DIR, "known_faces")
 known_face_encodings = []
 known_face_enrollments = []
 
