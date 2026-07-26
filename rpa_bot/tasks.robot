@@ -5,11 +5,11 @@ Library           EmailLibrary.py    smtp_server=smtp.gmail.com    smtp_port=587
 
 *** Variables ***
 ${ADMIN_URL}      http://127.0.0.1:8000/admin
-${ADMIN_USER}     # Your Django superuser
-${ADMIN_PASS}     # Your Django password
+${ADMIN_USER}     admin
+${ADMIN_PASS}     admin123
 
-${GMAIL_USER}     # Your actual Gmail address
-${GMAIL_PASS}     # The 16-letter App Password (NO SPACES)
+${GMAIL_USER}     your_email@gmail.com
+${GMAIL_PASS}     your_app_password
 
 *** Tasks ***
 Process Weekly Attendance Alerts
@@ -22,7 +22,7 @@ Process Weekly Attendance Alerts
     
     # In the final version, this will loop through the low-attendance students.
     # For now, we test the dispatch system with a single hardcoded alert.
-    Send Warning Email    # ENTER_A_TEST_EMAIL_ADDRESS_HERE    Student Name    65%
+    Send Warning Email    test@example.com    Student Name    65%
     
     Log    Successfully dispatched warning emails!
     [Teardown]    Close Browser
