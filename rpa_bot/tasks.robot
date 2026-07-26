@@ -37,14 +37,14 @@ Authorize Email Server
     Authorize    account=${GMAIL_USER}    password=${GMAIL_PASS}
 
 Audit Attendance Records
-    # Locate all rows in the Django admin data table
-    ${rows}=    Get WebElements    xpath://*[@id="result_list"]/tbody/tr
+    # Locate the number of rows in the Django admin data table
+    ${row_count}=    Get Element Count    xpath://*[@id="result_list"]/tbody/tr
     
-    FOR    ${row}    IN    @{rows}
-        # Scrape data from specific columns using Django's auto-generated CSS classes
-        ${name}=          Get Text    ${row}//th[@class='field-name']
-        ${email}=         Get Text    ${row}//td[@class='field-parent_email']
-        ${percent_str}=   Get Text    ${row}//td[@class='field-get_attendance_percentage']
+    FOR    ${i}    IN RANGE    1    ${row_count} + 1
+        # Scrape data from specific columns using Django's auto-generated CSS classes by row index
+        ${name}=          Get Text    xpath://*[@id="result_list"]/tbody/tr[${i}]/th[contains(@class, 'field-name')]
+        ${email}=         Get Text    xpath://*[@id="result_list"]/tbody/tr[${i}]/td[contains(@class, 'field-parent_email')]
+        ${percent_str}=   Get Text    xpath://*[@id="result_list"]/tbody/tr[${i}]/td[contains(@class, 'field-get_attendance_percentage')]
         
         # Strip the '%' sign and convert the string to a decimal number for math comparison
         ${percent_num}=   Remove String    ${percent_str}    %
