@@ -344,8 +344,9 @@ def _update_robot_config(config):
         content = f.read()
 
     import re
-    content = re.sub(r'\$\{GMAIL_USER\}\s+\S+', f'${{GMAIL_USER}}     {config.gmail_address}', content)
-    content = re.sub(r'\$\{GMAIL_PASS\}\s+\S+', f'${{GMAIL_PASS}}     {config.gmail_app_password}', content)
+    # Use ^ to only match variables defined at the beginning of the line (in *** Variables *** section)
+    content = re.sub(r'(?m)^(\$\{GMAIL_USER\})\s+\S+', rf'\1     {config.gmail_address}', content)
+    content = re.sub(r'(?m)^(\$\{GMAIL_PASS\})\s+\S+', rf'\1     {config.gmail_app_password}', content)
 
     with open(robot_path, 'w') as f:
         f.write(content)

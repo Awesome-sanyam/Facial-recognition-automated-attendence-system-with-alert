@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils import timezone
+from django.utils.safestring import mark_safe
 from django.utils.html import format_html
 from .models import FacultyProfile, AlertConfiguration, Student, AttendanceRecord, LeaveApplication
 
@@ -27,8 +28,8 @@ class FacultyProfileAdmin(admin.ModelAdmin):
 
     def approval_status(self, obj):
         if obj.is_approved:
-            return format_html('<span style="color:#16a34a;font-weight:700">✓ Approved</span>')
-        return format_html('<span style="color:#dc2626;font-weight:700">⏳ Pending Approval</span>')
+            return mark_safe('<span style="color:#16a34a;font-weight:700">✓ Approved</span>')
+        return mark_safe('<span style="color:#dc2626;font-weight:700">⏳ Pending Approval</span>')
     approval_status.short_description = 'Status'
 
     @admin.action(description='✅ Approve selected faculty registrations')
