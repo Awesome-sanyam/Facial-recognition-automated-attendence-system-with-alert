@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Login — Attendance System</title>
+    <title>Faculty Login — Attendance System</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -18,9 +18,7 @@
         }
         .bg-pattern {
             position: fixed; inset: 0; z-index: 0;
-            background: 
-                radial-gradient(ellipse at 30% 70%, rgba(255,255,255,0.04) 0%, transparent 55%),
-                #0a0a0a;
+            background: radial-gradient(ellipse at 70% 30%, rgba(255,255,255,0.05) 0%, transparent 55%), #0a0a0a;
         }
         .bg-pattern::after {
             content: '';
@@ -42,64 +40,52 @@
         }
         .back-link {
             display: inline-flex; align-items: center; gap: 6px;
-            color: #888;
-            font-size: 0.8rem;
-            text-decoration: none;
-            margin-bottom: 2.5rem;
+            color: #888; font-size: 0.8rem; text-decoration: none; margin-bottom: 2.5rem;
             transition: color 0.2s;
         }
         .back-link:hover { color: #fff; }
-        .icon-wrap {
-            width: 56px; height: 56px;
+        .badge-admin {
+            display: inline-flex; align-items: center; gap: 6px;
             background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 16px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.6rem;
-            margin-bottom: 1.5rem;
+            border: 1px solid rgba(255,255,255,0.15);
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #ccc;
+            margin-bottom: 1.25rem;
         }
         h2 { font-size: 1.7rem; font-weight: 800; margin-bottom: 0.5rem; }
         .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 2rem; line-height: 1.5; }
         .error-box {
-            background: rgba(239,68,68,0.1);
-            border: 1px solid rgba(239,68,68,0.3);
-            border-radius: 10px;
-            padding: 0.8rem 1rem;
-            font-size: 0.85rem;
-            color: #f87171;
-            margin-bottom: 1.5rem;
+            background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 10px; padding: 0.8rem 1rem; font-size: 0.85rem; color: #f87171; margin-bottom: 1.5rem;
         }
         .form-group { margin-bottom: 1.25rem; }
         label { display: block; font-size: 0.78rem; font-weight: 600; color: #aaa; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.5rem; }
-        input[type="text"] {
+        input[type="text"], input[type="password"] {
             width: 100%;
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 10px;
-            padding: 0.85rem 1rem;
-            font-size: 0.95rem;
-            font-family: 'Inter', sans-serif;
-            color: #fff;
-            outline: none;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px; padding: 0.85rem 1rem; font-size: 0.95rem;
+            font-family: 'Inter', sans-serif; color: #fff; outline: none;
             transition: border-color 0.2s, background 0.2s;
         }
-        input[type="text"]:focus { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.09); }
-        input[type="text"]::placeholder { color: #555; }
+        input:focus { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.09); }
+        input::placeholder { color: #555; }
         .btn-primary {
-            width: 100%;
-            background: #fff;
-            color: #000;
-            border: none;
-            border-radius: 10px;
-            padding: 0.9rem;
-            font-size: 0.95rem;
-            font-weight: 700;
-            font-family: 'Inter', sans-serif;
-            cursor: pointer;
-            margin-top: 0.5rem;
-            transition: opacity 0.2s, transform 0.2s;
+            width: 100%; background: #fff; color: #000; border: none; border-radius: 10px;
+            padding: 0.9rem; font-size: 0.95rem; font-weight: 700; font-family: 'Inter', sans-serif;
+            cursor: pointer; margin-top: 0.5rem; transition: opacity 0.2s, transform 0.2s;
         }
         .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+        .secure-note {
+            display: flex; align-items: center; gap: 8px;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px; padding: 0.75rem 1rem; margin-top: 1.5rem;
+            font-size: 0.78rem; color: #666;
+        }
         .divider { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 1.75rem 0; }
         .alt-text { font-size: 0.82rem; color: #666; text-align: center; }
         .alt-text a { color: #aaa; text-decoration: none; font-weight: 600; }
@@ -111,22 +97,29 @@
     <div class="page-wrapper">
         <div class="card">
             <a href="{% url 'home' %}" class="back-link">← Back to Portal</a>
-            <div class="icon-wrap">🎓</div>
-            <h2>Student Login</h2>
-            <p class="subtitle">Enter your enrollment number to access your attendance dashboard.</p>
+            <div class="badge-admin">🔐 &nbsp;Faculty Access</div>
+            <h2>Faculty Login</h2>
+            <p class="subtitle">Restricted to authorised staff members. Use your faculty credentials to continue.</p>
             {% if error %}
             <div class="error-box">{{ error }}</div>
             {% endif %}
             <form method="POST">
                 {% csrf_token %}
                 <div class="form-group">
-                    <label for="enrollment">Enrollment Number</label>
-                    <input type="text" id="enrollment" name="enrollment_number" placeholder="e.g. ENR2024001" autocomplete="off" required>
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" placeholder="Faculty username" autocomplete="off" required>
                 </div>
-                <button type="submit" class="btn-primary">Access Dashboard →</button>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="••••••••••••" required>
+                </div>
+                <button type="submit" class="btn-primary">Login to Faculty Portal →</button>
             </form>
+            <div class="secure-note">
+                🔒 &nbsp;This portal is for authorised faculty and staff only. Access is monitored.
+            </div>
             <hr class="divider">
-            <p class="alt-text">Faculty member? <a href="{% url 'faculty_login' %}">Login to Faculty Portal</a></p>
+            <p class="alt-text">Student? <a href="{% url 'student_login' %}">Login to Student Portal</a></p>
         </div>
     </div>
 </body>

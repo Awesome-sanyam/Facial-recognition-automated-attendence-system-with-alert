@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Dashboard — Attendance System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background: #0a0a0a; color: #fff; min-height: 100vh; }
+        /* Nav */
+        nav {
+            position: sticky; top: 0; z-index: 100;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 1rem 2rem;
+            background: rgba(10,10,10,0.85); backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+        .nav-left { display: flex; align-items: center; gap: 1.5rem; }
+        .nav-brand { font-size: 0.95rem; font-weight: 800; }
+        .nav-brand-sub { font-size: 0.78rem; color: #666; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 2px 10px; }
+        .nav-right { display: flex; align-items: center; gap: 1rem; }
+        .nav-user { font-size: 0.82rem; color: #666; }
+        .nav-user strong { color: #ccc; }
+        .btn-nav {
+            background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+            color: #aaa; border-radius: 8px; padding: 0.45rem 1rem;
+            font-size: 0.82rem; font-weight: 600; text-decoration: none; transition: all 0.2s;
+        }
+        .btn-nav:hover { background: rgba(255,255,255,0.13); color: #fff; }
+        .btn-nav-admin {
+            background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+            color: #fff; border-radius: 8px; padding: 0.45rem 1rem;
+            font-size: 0.82rem; font-weight: 700; text-decoration: none; transition: all 0.2s;
+        }
+        .btn-nav-admin:hover { background: rgba(255,255,255,0.2); color: #fff; }
+        /* Main layout */
+        main { max-width: 1300px; margin: 0 auto; padding: 2rem 1.5rem; }
+        /* Stats row */
+        .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem; }
+        .stat {
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px; padding: 1.4rem 1.5rem;
+            display: flex; flex-direction: column; gap: 0.4rem;
+        }
+        .stat .s-label { font-size: 0.7rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.08em; }
+        .stat .s-value { font-size: 2.2rem; font-weight: 900; line-height: 1; }
+        .stat .s-sub { font-size: 0.78rem; color: #555; }
+        .stat-danger .s-value { color: #f87171; }
+        .stat-warn .s-value { color: #fbbf24; }
+        /* Grid layout */
+        .grid { display: grid; grid-template-columns: 1fr 380px; gap: 1.5rem; }
+        /* Section heading */
+        .section-label {
+            font-size: 0.68rem; font-weight: 800; color: #555;
+            text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 0.85rem;
+        }
+        /* Table card */
+        .tcard {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 16px; overflow: hidden; margin-bottom: 1.5rem;
+        }
+        .tcard-header {
+            padding: 1rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.06);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .tcard-header h3 { font-size: 0.92rem; font-weight: 700; }
+        .tcard-header span { font-size: 0.75rem; color: #555; }
+        table { width: 100%; border-collapse: collapse; }
+        th { padding: 0.65rem 1.25rem; text-align: left; font-size: 0.68rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        td { padding: 0.85rem 1.25rem; font-size: 0.85rem; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+        td.empty { text-align: center; color: #3a3a3a; padding: 2.5rem; font-size: 0.85rem; }
+        /* Badges */
+        .badge {
+            display: inline-block; padding: 3px 9px; border-radius: 100px;
+            font-size: 0.68rem; font-weight: 700;
+        }
+        .b-green { background: rgba(74,222,128,0.12); color: #4ade80; }
+        .b-red   { background: rgba(248,113,113,0.12); color: #f87171; }
+        .b-warn  { background: rgba(251,191,36,0.12); color: #fbbf24; }
+        /* Actions */
+        .action-btn {
+            display: inline-block; padding: 5px 12px;
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 7px;
+            font-size: 0.75rem; font-weight: 600; color: #aaa;
+            text-decoration: none; margin-right: 4px; transition: all 0.2s;
+        }
+        .action-btn:hover { border-color: rgba(255,255,255,0.3); color: #fff; }
+        .action-btn.approve:hover { border-color: rgba(74,222,128,0.5); color: #4ade80; }
+        .action-btn.reject:hover { border-color: rgba(248,113,113,0.5); color: #f87171; }
+        /* Right column — scans feed */
+        .scans-feed {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 16px; overflow: hidden; height: fit-content;
+        }
+        .scans-header {
+            padding: 1rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.06);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .scans-header h3 { font-size: 0.92rem; font-weight: 700; }
+        .live-dot {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 0.7rem; color: #4ade80;
+        }
+        .live-dot::before { content:''; display:block; width:6px; height:6px; background:#4ade80; border-radius:50%; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .scan-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.8rem 1.25rem;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        .scan-item:last-child { border-bottom: none; }
+        .scan-name { font-size: 0.83rem; font-weight: 600; color: #ddd; }
+        .scan-time { font-size: 0.72rem; color: #555; margin-top: 2px; }
+        .scan-list { max-height: 620px; overflow-y: auto; }
+        .scan-list::-webkit-scrollbar { width: 4px; }
+        .scan-list::-webkit-scrollbar-track { background: transparent; }
+        .scan-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+        .scan-empty { padding: 2.5rem; text-align: center; color: #3a3a3a; font-size: 0.83rem; }
+        /* Student name sub */
+        .name-cell { font-weight: 600; color: #ddd; }
+        .enr-cell { font-size: 0.75rem; color: #555; margin-top: 2px; }
+        @media(max-width:900px) {
+            .grid { grid-template-columns: 1fr; }
+            .stats-row { grid-template-columns: 1fr 1fr; }
+        }
+        @media(max-width:560px) { .stats-row { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-left">
+            <div class="nav-brand">Faculty Portal</div>
+            <span class="nav-brand-sub">Admin Dashboard</span>
+        </div>
+        <div class="nav-right">
+            <span class="nav-user">Logged in as &nbsp;<strong>{{ faculty_name }}</strong></span>
+            <a href="/admin/" class="btn-nav-admin">Django Admin ↗</a>
+            <a href="{% url 'faculty_logout' %}" class="btn-nav">Log Out</a>
+        </div>
+    </nav>
+
+    <main>
+        <!-- Stats -->
+        <div class="stats-row">
+            <div class="stat">
+                <div class="s-label">Total Students</div>
+                <div class="s-value">{{ total_students }}</div>
+                <div class="s-sub">Enrolled in the system</div>
+            </div>
+            <div class="stat stat-danger">
+                <div class="s-label">Low Attendance</div>
+                <div class="s-value">{{ low_attendance_count }}</div>
+                <div class="s-sub">Below 75% threshold</div>
+            </div>
+            <div class="stat stat-warn">
+                <div class="s-label">Pending Leaves</div>
+                <div class="s-value">{{ pending_count }}</div>
+                <div class="s-sub">Awaiting your review</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- LEFT COLUMN -->
+            <div>
+                <!-- Pending Leave Applications -->
+                <p class="section-label">Leave Applications — Pending Review</p>
+                <div class="tcard">
+                    <div class="tcard-header">
+                        <h3>Pending Leave Applications</h3>
+                        <span>{{ pending_count }} pending</span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Date</th>
+                                <th>Reason</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for leave in pending_leaves %}
+                            <tr>
+                                <td>
+                                    <div class="name-cell">{{ leave.student.name }}</div>
+                                    <div class="enr-cell">{{ leave.student.enrollment_number }}</div>
+                                </td>
+                                <td>{{ leave.date_requested }}</td>
+                                <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ leave.reason }}</td>
+                                <td>
+                                    <a href="{% url 'manage_leave' leave.id 'approve' %}" class="action-btn approve">✓ Approve</a>
+                                    <a href="{% url 'manage_leave' leave.id 'reject' %}" class="action-btn reject">✕ Reject</a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td class="empty" colspan="4">No pending leave applications. All clear ✓</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Student Attendance Roster -->
+                <p class="section-label">Student Attendance Roster</p>
+                <div class="tcard">
+                    <div class="tcard-header">
+                        <h3>All Students</h3>
+                        <span>{{ total_students }} records</span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Enrollment</th>
+                                <th>Parent Email</th>
+                                <th>Attendance %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in students %}
+                            <tr>
+                                <td><div class="name-cell">{{ s.name }}</div></td>
+                                <td style="font-size:0.8rem;color:#666">{{ s.enrollment_number }}</td>
+                                <td style="font-size:0.8rem;color:#666">{{ s.parent_email }}</td>
+                                <td>
+                                    <span class="badge {% if s.attendance_percentage < 75 %}b-red{% else %}b-green{% endif %}">
+                                        {{ s.attendance_percentage }}%
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td class="empty" colspan="4">No students registered yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Live Scan Feed -->
+            <div>
+                <p class="section-label">Live Classroom Scanner Feed</p>
+                <div class="scans-feed">
+                    <div class="scans-header">
+                        <h3>Recent Scans</h3>
+                        <div class="live-dot">Live Feed</div>
+                    </div>
+                    <div class="scan-list">
+                        {% for record in recent_attendance %}
+                        <div class="scan-item">
+                            <div>
+                                <div class="scan-name">{{ record.student.name }}</div>
+                                <div class="scan-time">{{ record.date }} at {{ record.time|time:"H:i" }}</div>
+                            </div>
+                            <span class="badge {% if record.status == 'Present' %}b-green{% else %}b-red{% endif %}">{{ record.status }}</span>
+                        </div>
+                        {% empty %}
+                        <div class="scan-empty">No recent scans from the classroom scanner.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
