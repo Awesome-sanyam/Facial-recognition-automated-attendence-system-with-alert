@@ -10,4 +10,5 @@ pillow==12.3.0
 psycopg2-binary==2.9.12
 python-dotenv==1.2.2
 robotframework==7.4.2
+setuptools==69.5.1
 sqlparse==0.5.5
