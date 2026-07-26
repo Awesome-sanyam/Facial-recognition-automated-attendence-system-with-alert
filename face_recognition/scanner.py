@@ -44,9 +44,8 @@ while True:
     if not ret:
         break
 
-    # OPTIMIZATION: Resize frame to 1/4 size for faster face recognition processing.
-    # This prevents the script from overloading system memory while running alongside other apps.
-    small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
+    # OPTIMIZATION: Resize frame to 1/2 size for better detection accuracy on webcams.
+    small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
     rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
     # Find all faces in the current frame
@@ -80,7 +79,7 @@ while True:
                 print(f"Error: {enrollment} recognized, but not found in Database.")
 
         # Scale back up face locations to draw the box on the original frame
-        top, right, bottom, left = [coord * 4 for coord in face_location]
+        top, right, bottom, left = [coord * 2 for coord in face_location]
         
         # Draw a box and label around the face
         cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
