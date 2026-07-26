@@ -1,159 +1,75 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>University Attendance System</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     <style>
+        {% include "core/_theme_css.html" %}
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        :root {
-            --black: #0a0a0a;
-            --white: #ffffff;
-            --gray-100: #f8f8f8;
-            --gray-200: #e8e8e8;
-            --gray-400: #9a9a9a;
-            --gray-600: #5a5a5a;
-            --glass: rgba(255,255,255,0.05);
-        }
-        body {
-            font-family: 'Inter', sans-serif;
-            background: var(--black);
-            color: var(--white);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-        /* Animated gradient background */
-        .bg-pattern {
-            position: fixed; inset: 0; z-index: 0;
-            background: radial-gradient(ellipse at 20% 50%, rgba(255,255,255,0.03) 0%, transparent 60%),
-                        radial-gradient(ellipse at 80% 20%, rgba(255,255,255,0.05) 0%, transparent 50%),
-                        var(--black);
-        }
-        .bg-pattern::after {
-            content: '';
-            position: absolute; inset: 0;
-            background-image: 
-                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-            background-size: 60px 60px;
-        }
-        /* Hero */
-        .hero {
-            position: relative; z-index: 1;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            min-height: 100vh;
-            padding: 2rem;
-            text-align: center;
-        }
-        .badge-pill {
-            display: inline-flex; align-items: center; gap: 8px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.12);
-            padding: 6px 18px;
-            border-radius: 100px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: var(--gray-400);
-            margin-bottom: 2rem;
-        }
-        .badge-pill .dot { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; animation: pulse 2s infinite; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-primary); min-height: 100vh; transition: background .3s, color .3s; }
+        .bg-pattern { position: fixed; inset: 0; z-index: 0; background: radial-gradient(ellipse at 20% 50%, rgba(128,128,128,0.06) 0%, transparent 60%), var(--bg); pointer-events:none; }
+        .bg-pattern::after { content:''; position:absolute; inset:0; background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px); background-size: 60px 60px; }
+        .hero { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; text-align: center; }
+        .theme-toggle { position: fixed; top: 1.25rem; right: 1.5rem; z-index: 200; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); border-radius: 8px; padding: 0.45rem 0.9rem; font-size: 0.8rem; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; transition: all .2s; }
+        .theme-toggle:hover { border-color: var(--border-focus); color: var(--text-primary); }
+        .badge-pill { display: inline-flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); padding: 6px 18px; border-radius: 100px; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2rem; }
+        .dot { width: 6px; height: 6px; background: var(--badge-success-text); border-radius: 50%; animation: pulse 2s infinite; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        h1.hero-title {
-            font-size: clamp(2.5rem, 8vw, 5.5rem);
-            font-weight: 900;
-            line-height: 1.05;
-            letter-spacing: -0.03em;
-            margin-bottom: 1.5rem;
-        }
-        .hero-title span { color: var(--gray-400); }
-        p.hero-subtitle {
-            font-size: 1.1rem;
-            color: var(--gray-400);
-            max-width: 520px;
-            line-height: 1.7;
-            margin-bottom: 3rem;
-        }
-        /* Cards */
-        .cards-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.25rem;
-            max-width: 700px;
-            width: 100%;
-        }
-        .portal-card {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 20px;
-            padding: 2.5rem 2rem;
-            text-decoration: none;
-            color: var(--white);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex; flex-direction: column; align-items: flex-start;
-            gap: 1rem;
-            position: relative;
-            overflow: hidden;
-        }
-        .portal-card::before {
-            content: '';
-            position: absolute; inset: 0;
-            background: linear-gradient(135deg, rgba(255,255,255,0.06), transparent);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        .portal-card:hover { border-color: rgba(255,255,255,0.35); transform: translateY(-4px); color: var(--white); }
-        .portal-card:hover::before { opacity: 1; }
-        .portal-card .icon {
-            width: 52px; height: 52px;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 14px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.4rem;
-        }
+        h1.hero-title { font-size: clamp(2.5rem, 8vw, 5.5rem); font-weight: 900; line-height: 1.05; letter-spacing: -0.03em; margin-bottom: 1.5rem; }
+        h1 span { color: var(--text-muted); }
+        p.hero-subtitle { font-size: 1.1rem; color: var(--text-secondary); max-width: 520px; line-height: 1.7; margin-bottom: 3rem; }
+        .cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; max-width: 700px; width: 100%; }
+        .portal-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; padding: 2.5rem 2rem; text-decoration: none; color: var(--text-primary); transition: all 0.3s cubic-bezier(0.4,0,0.2,1); display: flex; flex-direction: column; align-items: flex-start; gap: 1rem; position: relative; overflow: hidden; }
+        .portal-card:hover { border-color: var(--border-focus); transform: translateY(-4px); color: var(--text-primary); box-shadow: var(--shadow); }
+        .portal-card .icon { width: 52px; height: 52px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
         .portal-card h3 { font-size: 1.2rem; font-weight: 700; }
-        .portal-card p { font-size: 0.85rem; color: var(--gray-400); line-height: 1.5; }
-        .portal-card .arrow {
-            margin-top: auto;
-            font-size: 1.1rem;
-            opacity: 0.4;
-            transition: all 0.3s;
-            align-self: flex-end;
-        }
-        .portal-card:hover .arrow { opacity: 1; transform: translate(4px, -4px); }
-        /* Footer */
-        .hero-footer {
-            margin-top: 3.5rem;
-            font-size: 0.75rem;
-            color: var(--gray-600);
-        }
+        .portal-card p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; }
+        .portal-card .arrow { margin-top: auto; font-size: 1.1rem; opacity: 0.4; transition: all .3s; align-self: flex-end; }
+        .portal-card:hover .arrow { opacity: 1; transform: translate(4px,-4px); }
+        .hero-footer { margin-top: 3.5rem; font-size: 0.75rem; color: var(--text-muted); }
         @media(max-width:560px){ .cards-grid{grid-template-columns:1fr;} }
     </style>
+    <script>
+        (function(){ const t=localStorage.getItem('theme')||'dark'; document.documentElement.setAttribute('data-theme',t); })();
+    </script>
 </head>
 <body>
     <div class="bg-pattern"></div>
+    <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">☀ Light</button>
     <div class="hero">
         <div class="badge-pill"><span class="dot"></span>System Online</div>
         <h1 class="hero-title">University <span>Attendance</span><br>System</h1>
-        <p class="hero-subtitle">Automated attendance tracking powered by facial recognition. Select your portal to continue.</p>
+        <p class="hero-subtitle">Automated facial-recognition attendance tracking. Select your portal to continue.</p>
         <div class="cards-grid">
             <a href="{% url 'student_login' %}" class="portal-card">
                 <div class="icon">🎓</div>
                 <h3>Student Portal</h3>
-                <p>View your attendance records, percentage, and submit leave applications.</p>
+                <p>View attendance records, percentage, and submit leave applications.</p>
                 <div class="arrow">↗</div>
             </a>
             <a href="{% url 'faculty_login' %}" class="portal-card">
                 <div class="icon">🏛️</div>
                 <h3>Faculty Portal</h3>
-                <p>Manage students, review leave applications, and monitor attendance scans.</p>
+                <p>Manage students, approve leaves, configure alerts, and trigger the RPA bot.</p>
                 <div class="arrow">↗</div>
             </a>
         </div>
         <p class="hero-footer">Authorised access only &nbsp;·&nbsp; Facial Recognition Attendance System v2.0</p>
     </div>
+    <script>
+        function toggleTheme(){
+            const html=document.documentElement;
+            const t=html.getAttribute('data-theme')==='dark'?'light':'dark';
+            html.setAttribute('data-theme',t);
+            localStorage.setItem('theme',t);
+            document.getElementById('themeBtn').textContent=t==='dark'?'☀ Light':'🌙 Dark';
+        }
+        window.addEventListener('DOMContentLoaded',function(){
+            const t=localStorage.getItem('theme')||'dark';
+            document.getElementById('themeBtn').textContent=t==='dark'?'☀ Light':'🌙 Dark';
+        });
+    </script>
 </body>
 </html>

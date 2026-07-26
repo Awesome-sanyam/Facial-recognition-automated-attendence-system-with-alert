@@ -1,28 +1,50 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
-from .models import Student, AttendanceRecord, LeaveApplication
+from django.utils import timezone
+from django.http import JsonResponse
+import subprocess, os
+
+from .models import (
+    FacultyProfile, AlertConfiguration,
+    Student, AttendanceRecord, LeaveApplication
+)
 
 
 # ─────────────────────────────────────────────
-#  STUDENT PORTAL VIEWS
+#  HELPERS
+# ─────────────────────────────────────────────
+
+def is_approved_faculty(user):
+    return (
+        user.is_authenticated and
+        user.is_staff and
+        hasattr(user, 'faculty_profile') and
+        user.faculty_profile.is_approved
+    )
+
+
+# ─────────────────────────────────────────────
+#  LANDING
 # ─────────────────────────────────────────────
 
 def home(request):
-    """Landing page — lets user choose Student or Faculty login."""
     return render(request, 'core/home.html')
 
+
+# ─────────────────────────────────────────────
+#  STUDENT PORTAL
+# ─────────────────────────────────────────────
 
 def student_login(request):
     if request.method == "POST":
         enrollment = request.POST.get("enrollment_number", "").strip()
         if Student.objects.filter(enrollment_number=enrollment).exists():
-            # Store enrollment in session so the student stays logged in
             request.session['student_enrollment'] = enrollment
             return redirect('dashboard', enrollment_number=enrollment)
-        else:
-            return render(request, 'core/login.html', {'error': 'No student found with that enrollment number.'})
+        return render(request, 'core/login.html', {'error': 'No student found with that enrollment number.'})
     return render(request, 'core/login.html')
 
 
@@ -32,14 +54,15 @@ def student_logout(request):
 
 
 def dashboard(request, enrollment_number):
-    # Ensure the session matches (basic access control)
     if request.session.get('student_enrollment') != enrollment_number:
         return redirect('student_login')
     student = get_object_or_404(Student, enrollment_number=enrollment_number)
     recent_records = AttendanceRecord.objects.filter(student=student).order_by('-date')[:10]
+    leave_history = LeaveApplication.objects.filter(student=student).order_by('-date_requested')[:5]
     context = {
         'student': student,
         'records': recent_records,
+        'leave_history': leave_history,
         'percentage': student.attendance_percentage,
     }
     return render(request, 'core/dashboard.html', context)
@@ -59,29 +82,75 @@ def apply_leave(request, enrollment_number):
 
 
 # ─────────────────────────────────────────────
-#  FACULTY PORTAL VIEWS
+#  FACULTY REGISTRATION FLOW
 # ─────────────────────────────────────────────
 
-def is_faculty(user):
-    return user.is_authenticated and user.is_staff
+def faculty_register(request):
+    if request.method == "POST":
+        first_name = request.POST.get("first_name", "").strip()
+        last_name  = request.POST.get("last_name", "").strip()
+        username   = request.POST.get("username", "").strip()
+        email      = request.POST.get("email", "").strip()
+        department = request.POST.get("department", "").strip()
+        phone      = request.POST.get("phone", "").strip()
+        password   = request.POST.get("password", "")
+        password2  = request.POST.get("password2", "")
 
+        errors = {}
+        if password != password2:
+            errors['password'] = "Passwords do not match."
+        if User.objects.filter(username=username).exists():
+            errors['username'] = "That username is already taken."
+        if User.objects.filter(email=email).exists():
+            errors['email'] = "An account with that email already exists."
+
+        if errors:
+            return render(request, 'core/faculty_register.html', {'errors': errors, 'form': request.POST})
+
+        # Create user as INACTIVE until approved
+        user = User.objects.create_user(
+            username=username, email=email, password=password,
+            first_name=first_name, last_name=last_name,
+            is_active=False, is_staff=False
+        )
+        FacultyProfile.objects.create(user=user, department=department, phone=phone)
+        return redirect('faculty_pending')
+
+    return render(request, 'core/faculty_register.html')
+
+
+def faculty_pending(request):
+    return render(request, 'core/faculty_pending.html')
+
+
+# ─────────────────────────────────────────────
+#  FACULTY LOGIN / LOGOUT
+# ─────────────────────────────────────────────
 
 def faculty_login(request):
-    """Custom faculty login view using Django auth."""
-    if request.user.is_authenticated and request.user.is_staff:
+    if is_approved_faculty(request.user):
         return redirect('faculty_dashboard')
 
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
         user = authenticate(request, username=username, password=password)
-        if user is not None and user.is_staff:
-            login(request, user)
-            return redirect('faculty_dashboard')
-        else:
+
+        if user is None:
+            return render(request, 'core/faculty_login.html', {'error': 'Invalid username or password.'})
+
+        if not hasattr(user, 'faculty_profile'):
+            return render(request, 'core/faculty_login.html', {'error': 'No faculty profile found. Please register first.'})
+
+        if not user.faculty_profile.is_approved:
             return render(request, 'core/faculty_login.html', {
-                'error': 'Invalid credentials or you are not authorised as Faculty.'
+                'error': 'Your registration is awaiting approval by the Django administrator.',
+                'show_pending_link': True
             })
+
+        login(request, user)
+        return redirect('faculty_dashboard')
+
     return render(request, 'core/faculty_login.html')
 
 
@@ -90,39 +159,168 @@ def faculty_logout(request):
     return redirect('faculty_login')
 
 
-@user_passes_test(is_faculty, login_url='/faculty/login/')
+# ─────────────────────────────────────────────
+#  FACULTY DASHBOARD
+# ─────────────────────────────────────────────
+
+@user_passes_test(is_approved_faculty, login_url='/faculty/login/')
 def faculty_dashboard(request):
+    profile = request.user.faculty_profile
     students = Student.objects.all().order_by('name')
     recent_attendance = AttendanceRecord.objects.select_related('student').order_by('-date', '-time')[:60]
     pending_leaves = LeaveApplication.objects.filter(status='Pending').select_related('student')
-    approved_leaves = LeaveApplication.objects.filter(status='Approved').select_related('student').order_by('-date_requested')[:10]
+    all_leaves = LeaveApplication.objects.select_related('student').order_by('-date_requested')[:20]
 
-    # Summary stats
+    alert_config, _ = AlertConfiguration.objects.get_or_create(faculty=profile)
+
+    # Stats
     total_students = students.count()
-    low_attendance_count = sum(1 for s in students if s.attendance_percentage < 75)
+    low_attendance_count = sum(1 for s in students if s.attendance_percentage < alert_config.alert_threshold)
     pending_count = pending_leaves.count()
 
     context = {
+        'profile': profile,
+        'faculty_name': request.user.get_full_name() or request.user.username,
         'students': students,
         'recent_attendance': recent_attendance,
         'pending_leaves': pending_leaves,
-        'approved_leaves': approved_leaves,
+        'all_leaves': all_leaves,
+        'alert_config': alert_config,
         'total_students': total_students,
         'low_attendance_count': low_attendance_count,
         'pending_count': pending_count,
-        'faculty_name': request.user.get_full_name() or request.user.username,
+        'active_tab': request.GET.get('tab', 'students'),
     }
     return render(request, 'core/faculty_dashboard.html', context)
 
 
-@user_passes_test(is_faculty, login_url='/faculty/login/')
+# ─────────────────────────────────────────────
+#  STUDENT CRUD
+# ─────────────────────────────────────────────
+
+@user_passes_test(is_approved_faculty, login_url='/faculty/login/')
+def add_student(request):
+    if request.method == "POST":
+        profile = request.user.faculty_profile
+        name       = request.POST.get("name", "").strip()
+        enr        = request.POST.get("enrollment_number", "").strip()
+        email      = request.POST.get("email", "").strip()
+        p_email    = request.POST.get("parent_email", "").strip()
+        p_phone    = request.POST.get("parent_phone", "").strip()
+        department = request.POST.get("department", "").strip()
+        year       = request.POST.get("year", 1)
+
+        if Student.objects.filter(enrollment_number=enr).exists():
+            messages.error(request, f"Enrollment number '{enr}' already exists.")
+        else:
+            Student.objects.create(
+                name=name, enrollment_number=enr, email=email,
+                parent_email=p_email, parent_phone=p_phone,
+                department=department, year=year, added_by=profile
+            )
+            messages.success(request, f"Student '{name}' added successfully.")
+    return redirect('/faculty/dashboard/?tab=students')
+
+
+@user_passes_test(is_approved_faculty, login_url='/faculty/login/')
+def delete_student(request, student_id):
+    if request.method == "POST":
+        student = get_object_or_404(Student, id=student_id)
+        name = student.name
+        student.delete()
+        messages.success(request, f"Student '{name}' and all their records have been deleted.")
+    return redirect('/faculty/dashboard/?tab=students')
+
+
+# ─────────────────────────────────────────────
+#  LEAVE MANAGEMENT
+# ─────────────────────────────────────────────
+
+@user_passes_test(is_approved_faculty, login_url='/faculty/login/')
 def manage_leave(request, leave_id, action):
     leave = get_object_or_404(LeaveApplication, id=leave_id)
+    profile = request.user.faculty_profile
     if action == 'approve':
         leave.status = 'Approved'
+        leave.reviewed_by = profile
+        leave.reviewed_at = timezone.now()
         messages.success(request, f"Leave for {leave.student.name} approved.")
     elif action == 'reject':
         leave.status = 'Rejected'
+        leave.reviewed_by = profile
+        leave.reviewed_at = timezone.now()
         messages.warning(request, f"Leave for {leave.student.name} rejected.")
     leave.save()
-    return redirect('faculty_dashboard')
+    return redirect('/faculty/dashboard/?tab=leaves')
+
+
+# ─────────────────────────────────────────────
+#  ALERT CONFIGURATION
+# ─────────────────────────────────────────────
+
+@user_passes_test(is_approved_faculty, login_url='/faculty/login/')
+def save_alert_config(request):
+    if request.method == "POST":
+        profile = request.user.faculty_profile
+        config, _ = AlertConfiguration.objects.get_or_create(faculty=profile)
+        config.gmail_address       = request.POST.get("gmail_address", "").strip()
+        config.gmail_app_password  = request.POST.get("gmail_app_password", "").strip()
+        config.alert_threshold     = int(request.POST.get("alert_threshold", 75))
+        config.email_alerts_enabled = request.POST.get("email_alerts_enabled") == "on"
+        config.alert_email_subject = request.POST.get("alert_email_subject", "").strip()
+        config.alert_email_body    = request.POST.get("alert_email_body", "").strip()
+        config.save()
+
+        # Write settings into the Robot Framework tasks.robot
+        _update_robot_config(config)
+        messages.success(request, "Alert configuration saved and applied to the RPA bot.")
+    return redirect('/faculty/dashboard/?tab=alerts')
+
+
+def _update_robot_config(config):
+    """Rewrites the Robot Framework tasks.robot variables to match the DB config."""
+    robot_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        'rpa_bot', 'tasks.robot'
+    )
+    if not os.path.exists(robot_path):
+        return
+    with open(robot_path, 'r') as f:
+        content = f.read()
+
+    import re
+    content = re.sub(r'\$\{GMAIL_USER\}\s+\S+', f'${{GMAIL_USER}}     {config.gmail_address}', content)
+    content = re.sub(r'\$\{GMAIL_PASS\}\s+\S+', f'${{GMAIL_PASS}}     {config.gmail_app_password}', content)
+
+    with open(robot_path, 'w') as f:
+        f.write(content)
+
+
+@user_passes_test(is_approved_faculty, login_url='/faculty/login/')
+def run_alert_bot(request):
+    """Triggers the Robot Framework RPA bot as a subprocess."""
+    if request.method == "POST":
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        venv_robot = os.path.join(project_root, '.venv', 'bin', 'robot')
+        robot_file = os.path.join(project_root, 'rpa_bot', 'tasks.robot')
+
+        profile = request.user.faculty_profile
+        config, _ = AlertConfiguration.objects.get_or_create(faculty=profile)
+
+        try:
+            result = subprocess.run(
+                [venv_robot, robot_file],
+                capture_output=True, text=True, timeout=120, cwd=project_root
+            )
+            if result.returncode == 0:
+                config.last_run_at = timezone.now()
+                config.save()
+                messages.success(request, "RPA Alert Bot ran successfully! Emails have been dispatched.")
+            else:
+                messages.error(request, f"Bot finished with errors. Check output: {result.stdout[-500:] or result.stderr[-500:]}")
+        except subprocess.TimeoutExpired:
+            messages.error(request, "Bot timed out after 2 minutes.")
+        except FileNotFoundError:
+            messages.error(request, "Could not find the Robot Framework executable. Ensure dependencies are installed.")
+
+    return redirect('/faculty/dashboard/?tab=alerts')

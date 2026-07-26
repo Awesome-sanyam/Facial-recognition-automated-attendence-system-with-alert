@@ -1,267 +1,395 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Faculty Dashboard — Attendance System</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', sans-serif; background: #0a0a0a; color: #fff; min-height: 100vh; }
-        /* Nav */
-        nav {
-            position: sticky; top: 0; z-index: 100;
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 1rem 2rem;
-            background: rgba(10,10,10,0.85); backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(255,255,255,0.07);
-        }
-        .nav-left { display: flex; align-items: center; gap: 1.5rem; }
-        .nav-brand { font-size: 0.95rem; font-weight: 800; }
-        .nav-brand-sub { font-size: 0.78rem; color: #666; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 2px 10px; }
-        .nav-right { display: flex; align-items: center; gap: 1rem; }
-        .nav-user { font-size: 0.82rem; color: #666; }
-        .nav-user strong { color: #ccc; }
-        .btn-nav {
-            background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
-            color: #aaa; border-radius: 8px; padding: 0.45rem 1rem;
-            font-size: 0.82rem; font-weight: 600; text-decoration: none; transition: all 0.2s;
-        }
-        .btn-nav:hover { background: rgba(255,255,255,0.13); color: #fff; }
-        .btn-nav-admin {
-            background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
-            color: #fff; border-radius: 8px; padding: 0.45rem 1rem;
-            font-size: 0.82rem; font-weight: 700; text-decoration: none; transition: all 0.2s;
-        }
-        .btn-nav-admin:hover { background: rgba(255,255,255,0.2); color: #fff; }
-        /* Main layout */
-        main { max-width: 1300px; margin: 0 auto; padding: 2rem 1.5rem; }
-        /* Stats row */
-        .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem; }
-        .stat {
-            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 14px; padding: 1.4rem 1.5rem;
-            display: flex; flex-direction: column; gap: 0.4rem;
-        }
-        .stat .s-label { font-size: 0.7rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.08em; }
-        .stat .s-value { font-size: 2.2rem; font-weight: 900; line-height: 1; }
-        .stat .s-sub { font-size: 0.78rem; color: #555; }
-        .stat-danger .s-value { color: #f87171; }
-        .stat-warn .s-value { color: #fbbf24; }
-        /* Grid layout */
-        .grid { display: grid; grid-template-columns: 1fr 380px; gap: 1.5rem; }
-        /* Section heading */
-        .section-label {
-            font-size: 0.68rem; font-weight: 800; color: #555;
-            text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 0.85rem;
-        }
-        /* Table card */
-        .tcard {
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 16px; overflow: hidden; margin-bottom: 1.5rem;
-        }
-        .tcard-header {
-            padding: 1rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.06);
-            display: flex; align-items: center; justify-content: space-between;
-        }
-        .tcard-header h3 { font-size: 0.92rem; font-weight: 700; }
-        .tcard-header span { font-size: 0.75rem; color: #555; }
-        table { width: 100%; border-collapse: collapse; }
-        th { padding: 0.65rem 1.25rem; text-align: left; font-size: 0.68rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        td { padding: 0.85rem 1.25rem; font-size: 0.85rem; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: middle; }
-        tr:last-child td { border-bottom: none; }
-        tr:hover td { background: rgba(255,255,255,0.02); }
-        td.empty { text-align: center; color: #3a3a3a; padding: 2.5rem; font-size: 0.85rem; }
-        /* Badges */
-        .badge {
-            display: inline-block; padding: 3px 9px; border-radius: 100px;
-            font-size: 0.68rem; font-weight: 700;
-        }
-        .b-green { background: rgba(74,222,128,0.12); color: #4ade80; }
-        .b-red   { background: rgba(248,113,113,0.12); color: #f87171; }
-        .b-warn  { background: rgba(251,191,36,0.12); color: #fbbf24; }
-        /* Actions */
-        .action-btn {
-            display: inline-block; padding: 5px 12px;
-            border: 1px solid rgba(255,255,255,0.1); border-radius: 7px;
-            font-size: 0.75rem; font-weight: 600; color: #aaa;
-            text-decoration: none; margin-right: 4px; transition: all 0.2s;
-        }
-        .action-btn:hover { border-color: rgba(255,255,255,0.3); color: #fff; }
-        .action-btn.approve:hover { border-color: rgba(74,222,128,0.5); color: #4ade80; }
-        .action-btn.reject:hover { border-color: rgba(248,113,113,0.5); color: #f87171; }
-        /* Right column — scans feed */
-        .scans-feed {
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 16px; overflow: hidden; height: fit-content;
-        }
-        .scans-header {
-            padding: 1rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.06);
-            display: flex; align-items: center; justify-content: space-between;
-        }
-        .scans-header h3 { font-size: 0.92rem; font-weight: 700; }
-        .live-dot {
-            display: flex; align-items: center; gap: 6px;
-            font-size: 0.7rem; color: #4ade80;
-        }
-        .live-dot::before { content:''; display:block; width:6px; height:6px; background:#4ade80; border-radius:50%; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-        .scan-item {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 0.8rem 1.25rem;
-            border-bottom: 1px solid rgba(255,255,255,0.03);
-        }
-        .scan-item:last-child { border-bottom: none; }
-        .scan-name { font-size: 0.83rem; font-weight: 600; color: #ddd; }
-        .scan-time { font-size: 0.72rem; color: #555; margin-top: 2px; }
-        .scan-list { max-height: 620px; overflow-y: auto; }
-        .scan-list::-webkit-scrollbar { width: 4px; }
-        .scan-list::-webkit-scrollbar-track { background: transparent; }
-        .scan-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-        .scan-empty { padding: 2.5rem; text-align: center; color: #3a3a3a; font-size: 0.83rem; }
-        /* Student name sub */
-        .name-cell { font-weight: 600; color: #ddd; }
-        .enr-cell { font-size: 0.75rem; color: #555; margin-top: 2px; }
-        @media(max-width:900px) {
-            .grid { grid-template-columns: 1fr; }
-            .stats-row { grid-template-columns: 1fr 1fr; }
-        }
-        @media(max-width:560px) { .stats-row { grid-template-columns: 1fr; } }
+        {% include "core/_theme_css.html" %}
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primary);min-height:100vh;transition:background .3s,color .3s;}
+        /* ── NAV ── */
+        nav{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:60px;background:var(--nav-bg);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+        .nav-left{display:flex;align-items:center;gap:1.25rem;}
+        .nav-brand{font-size:.95rem;font-weight:800;letter-spacing:-.02em;}
+        .nav-role{font-size:.7rem;font-weight:700;color:var(--text-muted);background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:2px 8px;text-transform:uppercase;letter-spacing:.08em;}
+        .nav-right{display:flex;align-items:center;gap:.75rem;}
+        .nav-user{font-size:.82rem;color:var(--text-muted);}
+        .nav-user strong{color:var(--text-secondary);}
+        .btn-sm{background:var(--bg-input);border:1px solid var(--border);color:var(--text-secondary);border-radius:8px;padding:.4rem .85rem;font-size:.78rem;font-weight:600;font-family:'Inter',sans-serif;text-decoration:none;cursor:pointer;transition:all .2s;}
+        .btn-sm:hover{border-color:var(--border-focus);color:var(--text-primary);}
+        .btn-sm-primary{background:var(--btn-primary-bg);color:var(--btn-primary-text);border:1px solid transparent;border-radius:8px;padding:.4rem .85rem;font-size:.78rem;font-weight:700;font-family:'Inter',sans-serif;text-decoration:none;cursor:pointer;transition:opacity .2s;}
+        .btn-sm-primary:hover{opacity:.85;}
+        /* ── MAIN ── */
+        main{max-width:1380px;margin:0 auto;padding:1.75rem 1.5rem;}
+        /* ── STATS ── */
+        .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.75rem;}
+        .stat{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.35rem 1.5rem;}
+        .stat .s-label{font-size:.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.4rem;}
+        .stat .s-value{font-size:2rem;font-weight:900;line-height:1;}
+        .stat .s-sub{font-size:.75rem;color:var(--text-muted);margin-top:.3rem;}
+        .s-danger .s-value{color:var(--badge-danger-text);}
+        .s-warn .s-value{color:var(--badge-warn-text);}
+        .s-success .s-value{color:var(--badge-success-text);}
+        /* ── TABS ── */
+        .tabs{display:flex;gap:.25rem;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.3rem;margin-bottom:1.75rem;overflow-x:auto;}
+        .tab{padding:.55rem 1.25rem;border-radius:9px;font-size:.83rem;font-weight:600;color:var(--text-muted);text-decoration:none;white-space:nowrap;transition:all .2s;}
+        .tab:hover{color:var(--text-primary);background:var(--tab-active-bg);}
+        .tab.active{background:var(--tab-active-bg);color:var(--text-primary);}
+        .tab-panel{display:none;}
+        .tab-panel.active{display:block;}
+        /* ── MESSAGES ── */
+        .msg{padding:.8rem 1rem;border-radius:10px;margin-bottom:1.25rem;font-size:.85rem;}
+        .msg-success{background:var(--badge-success-bg);border:1px solid var(--badge-success-text);color:var(--badge-success-text);}
+        .msg-error{background:var(--badge-danger-bg);border:1px solid var(--badge-danger-text);color:var(--badge-danger-text);}
+        .msg-warning{background:var(--badge-warn-bg);border:1px solid var(--badge-warn-text);color:var(--badge-warn-text);}
+        /* ── CARDS ── */
+        .tcard{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:1.5rem;}
+        .tcard-header{padding:1rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+        .tcard-header h3{font-size:.92rem;font-weight:700;}
+        .tcard-header span{font-size:.75rem;color:var(--text-muted);}
+        table{width:100%;border-collapse:collapse;}
+        th{padding:.65rem 1.25rem;text-align:left;font-size:.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);}
+        td{padding:.85rem 1.25rem;font-size:.85rem;color:var(--text-secondary);border-bottom:1px solid var(--border);vertical-align:middle;}
+        tr:last-child td{border-bottom:none;}
+        tr:hover td{background:var(--bg-card-hover);}
+        td.empty{text-align:center;color:var(--text-muted);padding:2.5rem;font-size:.85rem;}
+        .td-name{font-weight:600;color:var(--text-primary);}
+        .td-sub{font-size:.73rem;color:var(--text-muted);margin-top:2px;}
+        /* ── BADGES ── */
+        .badge{display:inline-block;padding:3px 9px;border-radius:100px;font-size:.68rem;font-weight:700;}
+        .b-green{background:var(--badge-success-bg);color:var(--badge-success-text);}
+        .b-red{background:var(--badge-danger-bg);color:var(--badge-danger-text);}
+        .b-warn{background:var(--badge-warn-bg);color:var(--badge-warn-text);}
+        /* ── ACTION BUTTONS ── */
+        .a-btn{display:inline-block;padding:4px 11px;border:1px solid var(--border);border-radius:7px;font-size:.73rem;font-weight:600;color:var(--text-secondary);text-decoration:none;margin-right:4px;transition:all .2s;cursor:pointer;background:transparent;font-family:'Inter',sans-serif;}
+        .a-btn:hover{border-color:var(--border-focus);color:var(--text-primary);}
+        .a-btn.approve:hover{border-color:var(--badge-success-text);color:var(--badge-success-text);}
+        .a-btn.reject:hover{border-color:var(--badge-danger-text);color:var(--badge-danger-text);}
+        .a-btn.del:hover{border-color:var(--badge-danger-text);color:var(--badge-danger-text);}
+        /* ── ADD STUDENT FORM ── */
+        .form-card{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:1.75rem;}
+        .form-card h3{font-size:.92rem;font-weight:700;margin-bottom:1.25rem;padding-bottom:.75rem;border-bottom:1px solid var(--border);}
+        .form-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;}
+        .form-group{margin-bottom:0;}
+        label{display:block;font-size:.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem;}
+        input[type=text],input[type=email],input[type=number],select,textarea{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:9px;padding:.75rem .9rem;font-size:.85rem;font-family:'Inter',sans-serif;color:var(--text-primary);outline:none;transition:border-color .2s,background .2s;}
+        input:focus,select:focus,textarea:focus{border-color:var(--border-focus);background:var(--bg-input-focus);}
+        input::placeholder,textarea::placeholder{color:var(--text-placeholder);}
+        select option{background:var(--bg);color:var(--text-primary);}
+        textarea{resize:vertical;min-height:110px;}
+        .form-footer{display:flex;justify-content:flex-end;margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border);}
+        .btn-submit{background:var(--btn-primary-bg);color:var(--btn-primary-text);border:none;border-radius:9px;padding:.75rem 1.75rem;font-size:.88rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:opacity .2s,transform .2s;}
+        .btn-submit:hover{opacity:.88;transform:translateY(-1px);}
+        /* ── ALERT CONFIG ── */
+        .alert-config-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;}
+        .config-card{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:1.75rem;}
+        .config-card h3{font-size:.92rem;font-weight:700;margin-bottom:1.25rem;}
+        .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.8rem 0;border-bottom:1px solid var(--border);margin-bottom:.8rem;}
+        .toggle-row label{font-size:.85rem;font-weight:600;color:var(--text-primary);text-transform:none;letter-spacing:0;margin-bottom:0;}
+        .toggle-desc{font-size:.75rem;color:var(--text-muted);}
+        /* ── RPA PANEL ── */
+        .rpa-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:1.75rem;margin-top:1.5rem;}
+        .rpa-panel h3{font-size:.92rem;font-weight:700;margin-bottom:.6rem;}
+        .rpa-panel p{font-size:.83rem;color:var(--text-secondary);margin-bottom:1.25rem;line-height:1.6;}
+        .last-run{font-size:.75rem;color:var(--text-muted);margin-top:.75rem;}
+        .btn-run{background:var(--btn-primary-bg);color:var(--btn-primary-text);border:none;border-radius:9px;padding:.75rem 1.75rem;font-size:.88rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:opacity .2s;display:inline-flex;align-items:center;gap:.5rem;}
+        .btn-run:hover{opacity:.85;}
+        /* ── SCANS FEED ── */
+        .scan-feed{max-height:500px;overflow-y:auto;}
+        .scan-feed::-webkit-scrollbar{width:4px;}
+        .scan-feed::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+        .scan-item{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.25rem;border-bottom:1px solid var(--border);}
+        .scan-item:last-child{border-bottom:none;}
+        .scan-name{font-size:.83rem;font-weight:600;color:var(--text-primary);}
+        .scan-time{font-size:.72rem;color:var(--text-muted);margin-top:2px;}
+        .live-dot{display:flex;align-items:center;gap:6px;font-size:.7rem;color:var(--badge-success-text);}
+        .live-dot::before{content:'';display:block;width:6px;height:6px;background:var(--badge-success-text);border-radius:50%;animation:pulse 2s infinite;}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+        /* ── RESPONSIVE ── */
+        @media(max-width:1024px){.stats-row{grid-template-columns:1fr 1fr;}.alert-config-grid{grid-template-columns:1fr;}}
+        @media(max-width:700px){.stats-row{grid-template-columns:1fr;}.form-grid{grid-template-columns:1fr;}.nav-user{display:none;}}
     </style>
+    <script>(function(){const t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 </head>
 <body>
     <nav>
         <div class="nav-left">
             <div class="nav-brand">Faculty Portal</div>
-            <span class="nav-brand-sub">Admin Dashboard</span>
+            <span class="nav-role">Admin Dashboard</span>
         </div>
         <div class="nav-right">
-            <span class="nav-user">Logged in as &nbsp;<strong>{{ faculty_name }}</strong></span>
-            <a href="/admin/" class="btn-nav-admin">Django Admin ↗</a>
-            <a href="{% url 'faculty_logout' %}" class="btn-nav">Log Out</a>
+            <span class="nav-user">Welcome, &nbsp;<strong>{{ faculty_name }}</strong></span>
+            <button class="btn-sm" onclick="toggleTheme()" id="themeBtn">☀ Light</button>
+            <a href="/admin/" class="btn-sm" target="_blank">Django Admin ↗</a>
+            <a href="{% url 'faculty_logout' %}" class="btn-sm">Log Out</a>
         </div>
     </nav>
 
     <main>
-        <!-- Stats -->
+        {% for msg in messages %}
+        <div class="msg {% if msg.tags == 'success' %}msg-success{% elif msg.tags == 'error' %}msg-error{% else %}msg-warning{% endif %}">{{ msg }}</div>
+        {% endfor %}
+
+        <!-- Stats Row -->
         <div class="stats-row">
             <div class="stat">
                 <div class="s-label">Total Students</div>
                 <div class="s-value">{{ total_students }}</div>
-                <div class="s-sub">Enrolled in the system</div>
+                <div class="s-sub">Enrolled in system</div>
             </div>
-            <div class="stat stat-danger">
+            <div class="stat s-danger">
                 <div class="s-label">Low Attendance</div>
                 <div class="s-value">{{ low_attendance_count }}</div>
-                <div class="s-sub">Below 75% threshold</div>
+                <div class="s-sub">Below {{ alert_config.alert_threshold }}% threshold</div>
             </div>
-            <div class="stat stat-warn">
+            <div class="stat s-warn">
                 <div class="s-label">Pending Leaves</div>
                 <div class="s-value">{{ pending_count }}</div>
                 <div class="s-sub">Awaiting your review</div>
             </div>
+            <div class="stat s-success">
+                <div class="s-label">Alert Threshold</div>
+                <div class="s-value">{{ alert_config.alert_threshold }}%</div>
+                <div class="s-sub">{% if alert_config.email_alerts_enabled %}Email alerts ON{% else %}Alerts disabled{% endif %}</div>
+            </div>
         </div>
 
-        <div class="grid">
-            <!-- LEFT COLUMN -->
-            <div>
-                <!-- Pending Leave Applications -->
-                <p class="section-label">Leave Applications — Pending Review</p>
-                <div class="tcard">
-                    <div class="tcard-header">
-                        <h3>Pending Leave Applications</h3>
-                        <span>{{ pending_count }} pending</span>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Student</th>
-                                <th>Date</th>
-                                <th>Reason</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for leave in pending_leaves %}
-                            <tr>
-                                <td>
-                                    <div class="name-cell">{{ leave.student.name }}</div>
-                                    <div class="enr-cell">{{ leave.student.enrollment_number }}</div>
-                                </td>
-                                <td>{{ leave.date_requested }}</td>
-                                <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ leave.reason }}</td>
-                                <td>
-                                    <a href="{% url 'manage_leave' leave.id 'approve' %}" class="action-btn approve">✓ Approve</a>
-                                    <a href="{% url 'manage_leave' leave.id 'reject' %}" class="action-btn reject">✕ Reject</a>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr><td class="empty" colspan="4">No pending leave applications. All clear ✓</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+        <!-- Tabs -->
+        <div class="tabs">
+            <a href="?tab=students"  class="tab {% if active_tab == 'students' %}active{% endif %}">👥 Students</a>
+            <a href="?tab=leaves"    class="tab {% if active_tab == 'leaves' %}active{% endif %}">📋 Leave Applications</a>
+            <a href="?tab=alerts"    class="tab {% if active_tab == 'alerts' %}active{% endif %}">📧 Alert Configuration</a>
+            <a href="?tab=scans"     class="tab {% if active_tab == 'scans' %}active{% endif %}">📡 Live Scanner Feed</a>
+        </div>
 
-                <!-- Student Attendance Roster -->
-                <p class="section-label">Student Attendance Roster</p>
-                <div class="tcard">
-                    <div class="tcard-header">
-                        <h3>All Students</h3>
-                        <span>{{ total_students }} records</span>
+        <!-- ══ TAB: STUDENTS ══════════════════════════════ -->
+        <div class="tab-panel {% if active_tab == 'students' %}active{% endif %}">
+            <!-- Add Student Form -->
+            <div class="form-card" style="margin-bottom:1.5rem;">
+                <h3>➕ Add New Student</h3>
+                <form method="POST" action="{% url 'add_student' %}">
+                    {% csrf_token %}
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Full Name</label>
+                            <input type="text" name="name" placeholder="e.g. Rahul Sharma" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Enrollment Number</label>
+                            <input type="text" name="enrollment_number" placeholder="e.g. ENR2024001" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Student Email</label>
+                            <input type="email" name="email" placeholder="student@uni.edu">
+                        </div>
+                        <div class="form-group">
+                            <label>Parent Email</label>
+                            <input type="email" name="parent_email" placeholder="parent@gmail.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Parent Phone</label>
+                            <input type="text" name="parent_phone" placeholder="+91 98765 43210" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Department</label>
+                            <input type="text" name="department" placeholder="Computer Science">
+                        </div>
+                        <div class="form-group">
+                            <label>Year</label>
+                            <select name="year">
+                                <option value="1">1st Year</option>
+                                <option value="2">2nd Year</option>
+                                <option value="3">3rd Year</option>
+                                <option value="4">4th Year</option>
+                            </select>
+                        </div>
                     </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Enrollment</th>
-                                <th>Parent Email</th>
-                                <th>Attendance %</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for s in students %}
-                            <tr>
-                                <td><div class="name-cell">{{ s.name }}</div></td>
-                                <td style="font-size:0.8rem;color:#666">{{ s.enrollment_number }}</td>
-                                <td style="font-size:0.8rem;color:#666">{{ s.parent_email }}</td>
-                                <td>
-                                    <span class="badge {% if s.attendance_percentage < 75 %}b-red{% else %}b-green{% endif %}">
-                                        {{ s.attendance_percentage }}%
-                                    </span>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr><td class="empty" colspan="4">No students registered yet.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                    <div class="form-footer">
+                        <button type="submit" class="btn-submit">Add Student →</button>
+                    </div>
+                </form>
             </div>
 
-            <!-- RIGHT COLUMN: Live Scan Feed -->
-            <div>
-                <p class="section-label">Live Classroom Scanner Feed</p>
-                <div class="scans-feed">
-                    <div class="scans-header">
-                        <h3>Recent Scans</h3>
-                        <div class="live-dot">Live Feed</div>
-                    </div>
-                    <div class="scan-list">
-                        {% for record in recent_attendance %}
-                        <div class="scan-item">
-                            <div>
-                                <div class="scan-name">{{ record.student.name }}</div>
-                                <div class="scan-time">{{ record.date }} at {{ record.time|time:"H:i" }}</div>
-                            </div>
-                            <span class="badge {% if record.status == 'Present' %}b-green{% else %}b-red{% endif %}">{{ record.status }}</span>
-                        </div>
+            <!-- Student Table -->
+            <div class="tcard">
+                <div class="tcard-header">
+                    <h3>Student Attendance Roster</h3>
+                    <span>{{ total_students }} students</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Enrollment</th>
+                            <th>Department</th>
+                            <th>Year</th>
+                            <th>Parent Email</th>
+                            <th>Attendance %</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in students %}
+                        <tr>
+                            <td><div class="td-name">{{ s.name }}</div><div class="td-sub">{{ s.email|default:"—" }}</div></td>
+                            <td style="font-size:.78rem;color:var(--text-muted)">{{ s.enrollment_number }}</td>
+                            <td>{{ s.department|default:"—" }}</td>
+                            <td>Year {{ s.year }}</td>
+                            <td style="font-size:.78rem">{{ s.parent_email }}</td>
+                            <td><span class="badge {% if s.attendance_percentage < alert_config.alert_threshold %}b-red{% else %}b-green{% endif %}">{{ s.attendance_percentage }}%</span></td>
+                            <td>
+                                <form method="POST" action="{% url 'delete_student' s.id %}" onsubmit="return confirm('Delete {{ s.name }} and ALL their records? This cannot be undone.');" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="a-btn del">🗑 Delete</button>
+                                </form>
+                            </td>
+                        </tr>
                         {% empty %}
-                        <div class="scan-empty">No recent scans from the classroom scanner.</div>
+                        <tr><td class="empty" colspan="7">No students added yet. Use the form above to add the first student.</td></tr>
                         {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ══ TAB: LEAVES ════════════════════════════════ -->
+        <div class="tab-panel {% if active_tab == 'leaves' %}active{% endif %}">
+            <!-- Pending -->
+            <div class="tcard">
+                <div class="tcard-header">
+                    <h3>⏳ Pending Leave Applications</h3>
+                    <span>{{ pending_count }} pending</span>
+                </div>
+                <table>
+                    <thead><tr><th>Student</th><th>Date Requested</th><th>Reason</th><th>Actions</th></tr></thead>
+                    <tbody>
+                        {% for leave in pending_leaves %}
+                        <tr>
+                            <td><div class="td-name">{{ leave.student.name }}</div><div class="td-sub">{{ leave.student.enrollment_number }}</div></td>
+                            <td>{{ leave.date_requested }}</td>
+                            <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ leave.reason }}</td>
+                            <td>
+                                <a href="{% url 'manage_leave' leave.id 'approve' %}" class="a-btn approve">✓ Approve</a>
+                                <a href="{% url 'manage_leave' leave.id 'reject' %}" class="a-btn reject">✕ Reject</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td class="empty" colspan="4">No pending applications. All clear ✓</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <!-- History -->
+            <div class="tcard">
+                <div class="tcard-header"><h3>Leave History</h3><span>Last 20</span></div>
+                <table>
+                    <thead><tr><th>Student</th><th>Date</th><th>Status</th><th>Reviewed By</th></tr></thead>
+                    <tbody>
+                        {% for leave in all_leaves %}
+                        <tr>
+                            <td><div class="td-name">{{ leave.student.name }}</div></td>
+                            <td>{{ leave.date_requested }}</td>
+                            <td><span class="badge {% if leave.status == 'Approved' %}b-green{% elif leave.status == 'Rejected' %}b-red{% else %}b-warn{% endif %}">{{ leave.status }}</span></td>
+                            <td style="font-size:.78rem;color:var(--text-muted)">{{ leave.reviewed_by|default:"Pending" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td class="empty" colspan="4">No leave history yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ══ TAB: ALERTS ════════════════════════════════ -->
+        <div class="tab-panel {% if active_tab == 'alerts' %}active{% endif %}">
+            <form method="POST" action="{% url 'save_alert_config' %}">
+                {% csrf_token %}
+                <div class="alert-config-grid">
+                    <div class="config-card">
+                        <h3>📧 Gmail SMTP Settings</h3>
+                        <div class="form-group" style="margin-bottom:1rem;">
+                            <label>Gmail Address</label>
+                            <input type="email" name="gmail_address" value="{{ alert_config.gmail_address }}" placeholder="yourbot@gmail.com">
+                        </div>
+                        <div class="form-group" style="margin-bottom:1rem;">
+                            <label>Gmail App Password <span style="color:var(--text-muted);text-transform:none;font-weight:400">(16-letter, no spaces)</span></label>
+                            <input type="text" name="gmail_app_password" value="{{ alert_config.gmail_app_password }}" placeholder="abcdabcdabcdabcd" autocomplete="off">
+                        </div>
+                        <div class="form-group" style="margin-bottom:1rem;">
+                            <label>Attendance Alert Threshold (%)</label>
+                            <input type="number" name="alert_threshold" value="{{ alert_config.alert_threshold }}" min="1" max="100">
+                        </div>
+                        <div class="toggle-row">
+                            <div>
+                                <label style="margin-bottom:2px;">Email Alerts Enabled</label>
+                                <div class="toggle-desc">Send emails to parents of low-attendance students</div>
+                            </div>
+                            <input type="checkbox" name="email_alerts_enabled" {% if alert_config.email_alerts_enabled %}checked{% endif %} style="width:18px;height:18px;cursor:pointer;">
+                        </div>
                     </div>
+                    <div class="config-card">
+                        <h3>✉️ Email Template</h3>
+                        <div class="form-group" style="margin-bottom:1rem;">
+                            <label>Subject Line</label>
+                            <input type="text" name="alert_email_subject" value="{{ alert_config.alert_email_subject }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Email Body <span style="color:var(--text-muted);text-transform:none;font-weight:400">({`{student_name}`}, {`{attendance_percentage}`}, {`{threshold}`} are replaced automatically)</span></label>
+                            <textarea name="alert_email_body" rows="8">{{ alert_config.alert_email_body }}</textarea>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top:1.25rem;">
+                    <button type="submit" class="btn-submit">💾 Save Alert Configuration</button>
+                </div>
+            </form>
+
+            <!-- RPA Bot Trigger -->
+            <div class="rpa-panel">
+                <h3>🤖 Run RPA Alert Bot Now</h3>
+                <p>This will immediately run the Robot Framework bot using the saved configuration above. It will open Chrome, log into the Django Admin, scan all student attendance records, and dispatch warning emails to any students below the threshold.</p>
+                <form method="POST" action="{% url 'run_alert_bot' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-run" onclick="this.textContent='⏳ Running...';this.disabled=true;">
+                        ▶ Run Alert Bot Now
+                    </button>
+                </form>
+                {% if alert_config.last_run_at %}
+                <p class="last-run">⏱ Last run: {{ alert_config.last_run_at|date:"M d, Y" }} at {{ alert_config.last_run_at|time:"H:i" }}</p>
+                {% else %}
+                <p class="last-run">⏱ Bot has never been run yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ══ TAB: SCANS ═════════════════════════════════ -->
+        <div class="tab-panel {% if active_tab == 'scans' %}active{% endif %}">
+            <div class="tcard">
+                <div class="tcard-header">
+                    <h3>📡 Recent Classroom Scans</h3>
+                    <div class="live-dot">Live Feed</div>
+                </div>
+                <div class="scan-feed">
+                    {% for record in recent_attendance %}
+                    <div class="scan-item">
+                        <div>
+                            <div class="scan-name">{{ record.student.name }}</div>
+                            <div class="scan-time">{{ record.date }} at {{ record.time|time:"H:i" }}</div>
+                        </div>
+                        <span class="badge {% if record.status == 'Present' %}b-green{% else %}b-red{% endif %}">{{ record.status }}</span>
+                    </div>
+                    {% empty %}
+                    <div style="text-align:center;padding:3rem;color:var(--text-muted);font-size:.85rem;">No recent scans from the facial recognition scanner.</div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
     </main>
+
+    <script>
+        function toggleTheme(){const h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('theme',t);document.getElementById('themeBtn').textContent=t==='dark'?'☀ Light':'🌙 Dark';}
+        window.addEventListener('DOMContentLoaded',function(){const t=localStorage.getItem('theme')||'dark';document.getElementById('themeBtn').textContent=t==='dark'?'☀ Light':'🌙 Dark';});
+    </script>
 </body>
 </html>

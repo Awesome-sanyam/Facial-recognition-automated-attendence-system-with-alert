@@ -1,126 +1,67 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Faculty Login — Attendance System</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Inter', sans-serif;
-            background: #0a0a0a;
-            color: #fff;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .bg-pattern {
-            position: fixed; inset: 0; z-index: 0;
-            background: radial-gradient(ellipse at 70% 30%, rgba(255,255,255,0.05) 0%, transparent 55%), #0a0a0a;
-        }
-        .bg-pattern::after {
-            content: '';
-            position: absolute; inset: 0;
-            background-image: 
-                linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-            background-size: 50px 50px;
-        }
-        .page-wrapper { position: relative; z-index: 1; width: 100%; padding: 2rem; display: flex; justify-content: center; }
-        .card {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 24px;
-            padding: 3rem 2.5rem;
-            width: 100%;
-            max-width: 440px;
-            backdrop-filter: blur(20px);
-        }
-        .back-link {
-            display: inline-flex; align-items: center; gap: 6px;
-            color: #888; font-size: 0.8rem; text-decoration: none; margin-bottom: 2.5rem;
-            transition: color 0.2s;
-        }
-        .back-link:hover { color: #fff; }
-        .badge-admin {
-            display: inline-flex; align-items: center; gap: 6px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.15);
-            padding: 4px 12px;
-            border-radius: 100px;
-            font-size: 0.7rem;
-            font-weight: 600;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: #ccc;
-            margin-bottom: 1.25rem;
-        }
-        h2 { font-size: 1.7rem; font-weight: 800; margin-bottom: 0.5rem; }
-        .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 2rem; line-height: 1.5; }
-        .error-box {
-            background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
-            border-radius: 10px; padding: 0.8rem 1rem; font-size: 0.85rem; color: #f87171; margin-bottom: 1.5rem;
-        }
-        .form-group { margin-bottom: 1.25rem; }
-        label { display: block; font-size: 0.78rem; font-weight: 600; color: #aaa; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.5rem; }
-        input[type="text"], input[type="password"] {
-            width: 100%;
-            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 10px; padding: 0.85rem 1rem; font-size: 0.95rem;
-            font-family: 'Inter', sans-serif; color: #fff; outline: none;
-            transition: border-color 0.2s, background 0.2s;
-        }
-        input:focus { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.09); }
-        input::placeholder { color: #555; }
-        .btn-primary {
-            width: 100%; background: #fff; color: #000; border: none; border-radius: 10px;
-            padding: 0.9rem; font-size: 0.95rem; font-weight: 700; font-family: 'Inter', sans-serif;
-            cursor: pointer; margin-top: 0.5rem; transition: opacity 0.2s, transform 0.2s;
-        }
-        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
-        .secure-note {
-            display: flex; align-items: center; gap: 8px;
-            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 10px; padding: 0.75rem 1rem; margin-top: 1.5rem;
-            font-size: 0.78rem; color: #666;
-        }
-        .divider { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 1.75rem 0; }
-        .alt-text { font-size: 0.82rem; color: #666; text-align: center; }
-        .alt-text a { color: #aaa; text-decoration: none; font-weight: 600; }
-        .alt-text a:hover { color: #fff; }
+        {% include "core/_theme_css.html" %}
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primary);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;transition:background .3s,color .3s;}
+        .theme-toggle{position:fixed;top:1.25rem;right:1.5rem;z-index:200;background:var(--bg-card);border:1px solid var(--border);color:var(--text-secondary);border-radius:8px;padding:.45rem .9rem;font-size:.8rem;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s;}
+        .theme-toggle:hover{border-color:var(--border-focus);color:var(--text-primary);}
+        .card{background:var(--bg-card);border:1px solid var(--border);border-radius:24px;padding:3rem 2.5rem;width:100%;max-width:440px;box-shadow:var(--shadow);}
+        .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:.8rem;text-decoration:none;margin-bottom:2.5rem;transition:color .2s;}
+        .back-link:hover{color:var(--text-primary);}
+        .badge{display:inline-flex;align-items:center;gap:6px;background:var(--bg-input);border:1px solid var(--border);padding:4px 12px;border-radius:100px;font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:1.25rem;}
+        h2{font-size:1.7rem;font-weight:800;margin-bottom:.5rem;}
+        .subtitle{color:var(--text-secondary);font-size:.88rem;margin-bottom:2rem;line-height:1.5;}
+        .error-box{background:var(--badge-danger-bg);border:1px solid var(--badge-danger-text);border-radius:10px;padding:.8rem 1rem;font-size:.83rem;color:var(--badge-danger-text);margin-bottom:1.25rem;}
+        .form-group{margin-bottom:1.25rem;}
+        label{display:block;font-size:.72rem;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.45rem;}
+        input[type=text],input[type=password]{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:.85rem 1rem;font-size:.92rem;font-family:'Inter',sans-serif;color:var(--text-primary);outline:none;transition:border-color .2s,background .2s;}
+        input:focus{border-color:var(--border-focus);background:var(--bg-input-focus);}
+        input::placeholder{color:var(--text-placeholder);}
+        .btn-primary{width:100%;background:var(--btn-primary-bg);color:var(--btn-primary-text);border:none;border-radius:10px;padding:.9rem;font-size:.95rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;margin-top:.5rem;transition:opacity .2s,transform .2s;}
+        .btn-primary:hover{opacity:.88;transform:translateY(-1px);}
+        .secure-note{display:flex;align-items:center;gap:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:.75rem 1rem;margin-top:1.5rem;font-size:.78rem;color:var(--text-muted);}
+        .divider{border:none;border-top:1px solid var(--border);margin:1.75rem 0;}
+        .alt-text{font-size:.82rem;color:var(--text-muted);text-align:center;}
+        .alt-text a{color:var(--text-secondary);text-decoration:none;font-weight:600;}
+        .alt-text a:hover{color:var(--text-primary);}
     </style>
+    <script>(function(){const t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 </head>
 <body>
-    <div class="bg-pattern"></div>
-    <div class="page-wrapper">
-        <div class="card">
-            <a href="{% url 'home' %}" class="back-link">← Back to Portal</a>
-            <div class="badge-admin">🔐 &nbsp;Faculty Access</div>
-            <h2>Faculty Login</h2>
-            <p class="subtitle">Restricted to authorised staff members. Use your faculty credentials to continue.</p>
-            {% if error %}
-            <div class="error-box">{{ error }}</div>
-            {% endif %}
-            <form method="POST">
-                {% csrf_token %}
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" name="username" placeholder="Faculty username" autocomplete="off" required>
-                </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" placeholder="••••••••••••" required>
-                </div>
-                <button type="submit" class="btn-primary">Login to Faculty Portal →</button>
-            </form>
-            <div class="secure-note">
-                🔒 &nbsp;This portal is for authorised faculty and staff only. Access is monitored.
+    <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">☀ Light</button>
+    <div class="card">
+        <a href="{% url 'home' %}" class="back-link">← Back to Portal</a>
+        <div class="badge">🔐 &nbsp;Faculty Access</div>
+        <h2>Faculty Login</h2>
+        <p class="subtitle">Restricted to authorised and approved staff members only.</p>
+        {% if error %}
+        <div class="error-box">{{ error }} {% if show_pending_link %}<br><a href="{% url 'faculty_pending' %}" style="color:inherit;font-weight:700">Check pending status →</a>{% endif %}</div>
+        {% endif %}
+        <form method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" name="username" placeholder="Faculty username" autocomplete="off" required>
             </div>
-            <hr class="divider">
-            <p class="alt-text">Student? <a href="{% url 'student_login' %}">Login to Student Portal</a></p>
-        </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="btn-primary">Login to Faculty Portal →</button>
+        </form>
+        <div class="secure-note">🔒 &nbsp;Authorised staff only. Access is logged and monitored.</div>
+        <hr class="divider">
+        <p class="alt-text" style="margin-bottom:.6rem;">New faculty? <a href="{% url 'faculty_register' %}">Register for access</a></p>
+        <p class="alt-text">Student? <a href="{% url 'student_login' %}">Student Portal</a></p>
     </div>
+    <script>
+        function toggleTheme(){const h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('theme',t);document.getElementById('themeBtn').textContent=t==='dark'?'☀ Light':'🌙 Dark';}
+        window.addEventListener('DOMContentLoaded',function(){const t=localStorage.getItem('theme')||'dark';document.getElementById('themeBtn').textContent=t==='dark'?'☀ Light':'🌙 Dark';});
+    </script>
 </body>
 </html>

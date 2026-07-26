@@ -1,162 +1,115 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Dashboard — Attendance System</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', sans-serif; background: #0a0a0a; color: #fff; min-height: 100vh; }
-        /* Nav */
-        nav {
-            position: sticky; top: 0; z-index: 100;
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 1rem 2rem;
-            background: rgba(10,10,10,0.8);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(255,255,255,0.07);
-        }
-        .nav-brand { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; }
-        .nav-brand span { color: #666; font-weight: 400; }
-        .nav-right { display: flex; align-items: center; gap: 1rem; }
-        .nav-user { font-size: 0.82rem; color: #888; }
-        .btn-nav {
-            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
-            color: #fff; border-radius: 8px; padding: 0.45rem 1rem;
-            font-size: 0.82rem; font-weight: 600; font-family: 'Inter', sans-serif;
-            text-decoration: none; cursor: pointer; transition: all 0.2s;
-        }
-        .btn-nav:hover { background: rgba(255,255,255,0.14); color: #fff; }
-        /* Page */
-        main { max-width: 1000px; margin: 0 auto; padding: 2.5rem 1.5rem; }
-        /* Hero stat */
-        .stat-hero {
-            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 2rem;
-        }
-        .stat-card {
-            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px; padding: 1.5rem;
-        }
-        .stat-card .label { font-size: 0.75rem; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.5rem; }
-        .stat-card .value { font-size: 2rem; font-weight: 900; }
-        .stat-card .desc { font-size: 0.8rem; color: #555; margin-top: 0.25rem; }
-        .stat-danger .value { color: #f87171; }
-        .stat-success .value { color: #4ade80; }
-        /* Alert */
-        .alert-warning {
-            background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2);
-            border-radius: 12px; padding: 1rem 1.25rem;
-            font-size: 0.88rem; color: #fbbf24; margin-bottom: 2rem;
-            display: flex; align-items: center; gap: 10px;
-        }
-        /* Section */
-        .section-title {
-            font-size: 0.72rem; font-weight: 700; color: #666;
-            text-transform: uppercase; letter-spacing: 0.1em;
-            margin-bottom: 1rem;
-        }
-        /* Table card */
-        .table-card {
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px; overflow: hidden; margin-bottom: 2rem;
-        }
-        .table-card-header {
-            padding: 1.1rem 1.5rem;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-            display: flex; align-items: center; justify-content: space-between;
-        }
-        .table-card-header h3 { font-size: 0.95rem; font-weight: 700; }
-        table { width: 100%; border-collapse: collapse; }
-        th { padding: 0.75rem 1.5rem; text-align: left; font-size: 0.72rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        td { padding: 0.9rem 1.5rem; font-size: 0.88rem; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.04); }
-        tr:last-child td { border-bottom: none; }
-        tr:hover td { background: rgba(255,255,255,0.025); }
-        .badge {
-            display: inline-block; padding: 3px 10px; border-radius: 100px;
-            font-size: 0.72rem; font-weight: 700;
-        }
-        .badge-success { background: rgba(74,222,128,0.15); color: #4ade80; }
-        .badge-danger  { background: rgba(248,113,113,0.15); color: #f87171; }
-        .badge-pending { background: rgba(251,191,36,0.15); color: #fbbf24; }
-        .empty-row td { text-align: center; color: #444; padding: 2.5rem; }
-        /* Action button */
-        .btn-action {
-            display: inline-block; padding: 0.5rem 1.25rem;
-            border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
-            font-size: 0.8rem; font-weight: 600; color: #ccc;
-            text-decoration: none; transition: all 0.2s;
-        }
-        .btn-action:hover { background: rgba(255,255,255,0.08); color: #fff; }
-        /* leave btn */
-        .btn-leave {
-            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-            color: #fff; border-radius: 10px; padding: 0.65rem 1.4rem;
-            font-size: 0.85rem; font-weight: 600; font-family: 'Inter', sans-serif;
-            text-decoration: none; transition: all 0.2s;
-        }
-        .btn-leave:hover { background: rgba(255,255,255,0.12); color: #fff; }
-        @media(max-width:640px){ .stat-hero{grid-template-columns:1fr;} nav{padding:0.75rem 1rem;} main{padding:1.5rem 1rem;} }
+        {% include "core/_theme_css.html" %}
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primary);min-height:100vh;transition:background .3s,color .3s;}
+        nav{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:60px;background:var(--nav-bg);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+        .nav-brand{font-size:.95rem;font-weight:700;} .nav-brand span{color:var(--text-muted);font-weight:400;}
+        .nav-right{display:flex;align-items:center;gap:.75rem;}
+        .nav-user{font-size:.82rem;color:var(--text-muted);}
+        .btn-sm{background:var(--bg-input);border:1px solid var(--border);color:var(--text-secondary);border-radius:8px;padding:.4rem .85rem;font-size:.78rem;font-weight:600;font-family:'Inter',sans-serif;text-decoration:none;cursor:pointer;transition:all .2s;}
+        .btn-sm:hover{border-color:var(--border-focus);color:var(--text-primary);}
+        main{max-width:1000px;margin:0 auto;padding:2.5rem 1.5rem;}
+        .alert-warning{background:var(--badge-warn-bg);border:1px solid var(--badge-warn-text);border-radius:12px;padding:1rem 1.25rem;font-size:.88rem;color:var(--badge-warn-text);margin-bottom:2rem;display:flex;align-items:center;gap:10px;}
+        .stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:2rem;}
+        .stat{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.35rem 1.5rem;}
+        .stat .s-label{font-size:.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.4rem;}
+        .stat .s-value{font-size:2rem;font-weight:900;line-height:1;}
+        .stat .s-sub{font-size:.75rem;color:var(--text-muted);margin-top:.3rem;}
+        .s-danger .s-value{color:var(--badge-danger-text);}
+        .s-success .s-value{color:var(--badge-success-text);}
+        .btn-leave{background:var(--btn-primary-bg);color:var(--btn-primary-text);border:none;border-radius:9px;padding:.65rem 1.4rem;font-size:.85rem;font-weight:700;font-family:'Inter',sans-serif;text-decoration:none;display:inline-block;margin-top:.5rem;transition:opacity .2s;}
+        .btn-leave:hover{opacity:.85;}
+        .tcard{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:1.5rem;}
+        .tcard-header{padding:1rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+        .tcard-header h3{font-size:.92rem;font-weight:700;}
+        .tcard-header span{font-size:.75rem;color:var(--text-muted);}
+        table{width:100%;border-collapse:collapse;}
+        th{padding:.65rem 1.25rem;text-align:left;font-size:.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);}
+        td{padding:.85rem 1.25rem;font-size:.85rem;color:var(--text-secondary);border-bottom:1px solid var(--border);}
+        tr:last-child td{border-bottom:none;}
+        tr:hover td{background:var(--bg-card-hover);}
+        td.empty{text-align:center;color:var(--text-muted);padding:2.5rem;font-size:.85rem;}
+        .badge{display:inline-block;padding:3px 9px;border-radius:100px;font-size:.68rem;font-weight:700;}
+        .b-green{background:var(--badge-success-bg);color:var(--badge-success-text);}
+        .b-red{background:var(--badge-danger-bg);color:var(--badge-danger-text);}
+        .b-warn{background:var(--badge-warn-bg);color:var(--badge-warn-text);}
+        @media(max-width:640px){.stats-row{grid-template-columns:1fr;} nav{padding:0 1rem;}}
     </style>
+    <script>(function(){const t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 </head>
 <body>
     <nav>
         <div class="nav-brand">Attendance System <span>/ Student</span></div>
         <div class="nav-right">
             <span class="nav-user">{{ student.name }}</span>
-            <a href="{% url 'student_logout' %}" class="btn-nav">Log Out</a>
+            <button class="btn-sm" onclick="toggleTheme()" id="themeBtn">☀ Light</button>
+            <a href="{% url 'student_logout' %}" class="btn-sm">Log Out</a>
         </div>
     </nav>
     <main>
         {% if percentage < 75 %}
-        <div class="alert-warning">
-            ⚠️ &nbsp;<strong>Attendance Warning:</strong> Your attendance has dropped below the mandatory 75% threshold. Please contact the administration or submit a leave application.
-        </div>
+        <div class="alert-warning">⚠️ &nbsp;<strong>Attendance Warning:</strong> Your attendance is below the 75% threshold. Submit a leave application or contact administration.</div>
         {% endif %}
-        <div class="stat-hero">
-            <div class="stat-card {% if percentage < 75 %}stat-danger{% else %}stat-success{% endif %}">
-                <div class="label">Overall Attendance</div>
-                <div class="value">{{ percentage }}%</div>
-                <div class="desc">{% if percentage >= 75 %}You are on track{% else %}Action required{% endif %}</div>
+        <div class="stats-row">
+            <div class="stat {% if percentage < 75 %}s-danger{% else %}s-success{% endif %}">
+                <div class="s-label">Overall Attendance</div>
+                <div class="s-value">{{ percentage }}%</div>
+                <div class="s-sub">{% if percentage >= 75 %}On track{% else %}Action required{% endif %}</div>
             </div>
-            <div class="stat-card">
-                <div class="label">Enrollment Number</div>
-                <div class="value" style="font-size:1.1rem;padding-top:0.5rem">{{ student.enrollment_number }}</div>
-                <div class="desc">{{ student.name }}</div>
+            <div class="stat">
+                <div class="s-label">Enrollment</div>
+                <div class="s-value" style="font-size:1.1rem;padding-top:.5rem">{{ student.enrollment_number }}</div>
+                <div class="s-sub">{{ student.department|default:"—" }} · Year {{ student.year }}</div>
             </div>
-            <div class="stat-card">
-                <div class="label">Quick Actions</div>
-                <a href="{% url 'apply_leave' student.enrollment_number %}" class="btn-leave" style="margin-top:0.5rem;display:inline-block">
-                    + Submit Leave
-                </a>
+            <div class="stat">
+                <div class="s-label">Quick Actions</div>
+                <a href="{% url 'apply_leave' student.enrollment_number %}" class="btn-leave">+ Submit Leave</a>
             </div>
         </div>
-        <div class="table-card">
-            <div class="table-card-header">
-                <h3>Recent Attendance History</h3>
-                <span style="font-size:0.78rem;color:#555">Last 10 records</span>
-            </div>
+        <div class="tcard">
+            <div class="tcard-header"><h3>Recent Attendance History</h3><span>Last 10 records</span></div>
             <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Time</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Date</th><th>Time</th><th>Status</th></tr></thead>
                 <tbody>
                     {% for record in records %}
                     <tr>
                         <td>{{ record.date }}</td>
                         <td>{{ record.time|time:"H:i" }}</td>
-                        <td><span class="badge {% if record.status == 'Present' %}badge-success{% else %}badge-danger{% endif %}">{{ record.status }}</span></td>
+                        <td><span class="badge {% if record.status == 'Present' %}b-green{% else %}b-red{% endif %}">{{ record.status }}</span></td>
                     </tr>
                     {% empty %}
-                    <tr class="empty-row"><td colspan="3">No attendance records found.</td></tr>
+                    <tr><td class="empty" colspan="3">No attendance records found yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="tcard">
+            <div class="tcard-header"><h3>My Leave Applications</h3><span>Last 5</span></div>
+            <table>
+                <thead><tr><th>Date Requested</th><th>Reason</th><th>Status</th></tr></thead>
+                <tbody>
+                    {% for leave in leave_history %}
+                    <tr>
+                        <td>{{ leave.date_requested }}</td>
+                        <td style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ leave.reason }}</td>
+                        <td><span class="badge {% if leave.status == 'Approved' %}b-green{% elif leave.status == 'Rejected' %}b-red{% else %}b-warn{% endif %}">{{ leave.status }}</span></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td class="empty" colspan="3">No leave applications submitted yet.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </main>
+    <script>
+        function toggleTheme(){const h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('theme',t);document.getElementById('themeBtn').textContent=t==='dark'?'☀ Light':'🌙 Dark';}
+        window.addEventListener('DOMContentLoaded',function(){const t=localStorage.getItem('theme')||'dark';document.getElementById('themeBtn').textContent=t==='dark'?'☀ Light':'🌙 Dark';});
+    </script>
 </body>
 </html>
