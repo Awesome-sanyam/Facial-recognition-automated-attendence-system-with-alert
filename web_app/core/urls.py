@@ -8,6 +8,7 @@ urlpatterns = [
     # ── Student Portal ────────────────────────────────────
     path('student/login/', views.student_login, name='student_login'),
     path('student/logout/', views.student_logout, name='student_logout'),
+    path('student/face-login/', views.face_login_api, name='face_login_api'),
     path('dashboard/<str:enrollment_number>/', views.dashboard, name='dashboard'),
     path('apply-leave/<str:enrollment_number>/', views.apply_leave, name='apply_leave'),
 

@@ -5,7 +5,16 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.utils import timezone
 from django.http import JsonResponse
-import subprocess, os
+from django.views.decorators.csrf import csrf_exempt
+import subprocess, os, sys, json
+
+# Add face_recognition module to path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'face_recognition'))
+try:
+    from face_login import recognize_face_from_b64
+    FACE_RECOGNITION_AVAILABLE = True
+except ImportError:
+    FACE_RECOGNITION_AVAILABLE = False
 
 from .models import (
     FacultyProfile, AlertConfiguration,
@@ -45,7 +54,53 @@ def student_login(request):
             request.session['student_enrollment'] = enrollment
             return redirect('dashboard', enrollment_number=enrollment)
         return render(request, 'core/login.html', {'error': 'No student found with that enrollment number.'})
-    return render(request, 'core/login.html')
+    return render(request, 'core/login.html', {'face_recognition_available': FACE_RECOGNITION_AVAILABLE})
+
+
+@csrf_exempt
+def face_login_api(request):
+    """Receives a base64 webcam frame, runs face recognition, marks attendance."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'POST only'}, status=405)
+
+    if not FACE_RECOGNITION_AVAILABLE:
+        return JsonResponse({'status': 'error', 'message': 'Face recognition module not available.'}, status=503)
+
+    try:
+        data = json.loads(request.body)
+        b64_image = data.get('image', '')
+    except (json.JSONDecodeError, KeyError):
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON body.'}, status=400)
+
+    enrollment, distance = recognize_face_from_b64(b64_image)
+
+    if enrollment is None:
+        return JsonResponse({'status': 'no_match', 'message': 'No face recognised. Hold still and try again.'})
+
+    try:
+        student = Student.objects.get(enrollment_number=enrollment)
+    except Student.DoesNotExist:
+        return JsonResponse({'status': 'no_match', 'message': f'Face matched enrollment {enrollment} but student not found in database.'})
+
+    # Mark attendance for today
+    from datetime import date
+    record, created = AttendanceRecord.objects.get_or_create(
+        student=student,
+        date=date.today(),
+        defaults={'status': 'Present'}
+    )
+
+    # Set session so the student is logged in
+    request.session['student_enrollment'] = enrollment
+
+    return JsonResponse({
+        'status': 'matched',
+        'name': student.name,
+        'enrollment': enrollment,
+        'attendance_marked': created,
+        'distance': round(float(distance), 3) if distance is not None else None,
+        'redirect_url': f'/dashboard/{enrollment}/'
+    })
 
 
 def student_logout(request):

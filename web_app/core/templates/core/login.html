@@ -3,56 +3,247 @@
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Login — Attendance System</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         {% include "core/_theme_css.html" %}
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primary);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;transition:background .3s,color .3s;}
+        .bg-pattern{position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse at 25% 60%,rgba(128,128,128,0.05) 0%,transparent 55%),var(--bg);pointer-events:none;}
+        .bg-pattern::after{content:'';position:absolute;inset:0;background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:50px 50px;}
         .theme-toggle{position:fixed;top:1.25rem;right:1.5rem;z-index:200;background:var(--bg-card);border:1px solid var(--border);color:var(--text-secondary);border-radius:8px;padding:.45rem .9rem;font-size:.8rem;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s;}
         .theme-toggle:hover{border-color:var(--border-focus);color:var(--text-primary);}
-        .card{background:var(--bg-card);border:1px solid var(--border);border-radius:24px;padding:3rem 2.5rem;width:100%;max-width:440px;box-shadow:var(--shadow);}
-        .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:.8rem;text-decoration:none;margin-bottom:2.5rem;transition:color .2s;}
+        /* Card */
+        .card{position:relative;z-index:1;background:var(--bg-card);border:1px solid var(--border);border-radius:24px;padding:0;width:100%;max-width:480px;box-shadow:var(--shadow);overflow:hidden;}
+        .card-header{padding:2rem 2.5rem 1.5rem;}
+        .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:.78rem;text-decoration:none;margin-bottom:2rem;transition:color .2s;}
         .back-link:hover{color:var(--text-primary);}
-        .icon-wrap{width:56px;height:56px;background:var(--bg-input);border:1px solid var(--border);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;margin-bottom:1.5rem;}
-        h2{font-size:1.7rem;font-weight:800;margin-bottom:.5rem;}
-        .subtitle{color:var(--text-secondary);font-size:.88rem;margin-bottom:2rem;line-height:1.5;}
-        .error-box{background:var(--badge-danger-bg);border:1px solid var(--badge-danger-text);border-radius:10px;padding:.8rem 1rem;font-size:.83rem;color:var(--badge-danger-text);margin-bottom:1.5rem;}
+        .icon-wrap{width:52px;height:52px;background:var(--bg-input);border:1px solid var(--border);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:1.25rem;}
+        h2{font-size:1.6rem;font-weight:800;margin-bottom:.35rem;}
+        .subtitle{color:var(--text-secondary);font-size:.86rem;line-height:1.55;}
+        /* Tabs */
+        .tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg-card);}
+        .tab{flex:1;padding:.85rem;text-align:center;font-size:.82rem;font-weight:700;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s;user-select:none;}
+        .tab.active{color:var(--text-primary);border-bottom-color:var(--text-primary);}
+        .tab:hover:not(.active){color:var(--text-secondary);}
+        /* Panels */
+        .panel{padding:2rem 2.5rem 2.5rem;display:none;}
+        .panel.active{display:block;}
+        /* Form */
+        .error-box{background:var(--badge-danger-bg);border:1px solid var(--badge-danger-text);border-radius:10px;padding:.75rem 1rem;font-size:.83rem;color:var(--badge-danger-text);margin-bottom:1.25rem;}
         .form-group{margin-bottom:1.25rem;}
-        label{display:block;font-size:.72rem;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.45rem;}
-        input[type=text]{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:.85rem 1rem;font-size:.92rem;font-family:'Inter',sans-serif;color:var(--text-primary);outline:none;transition:border-color .2s,background .2s;}
+        label{display:block;font-size:.7rem;font-weight:700;color:var(--text-muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:.45rem;}
+        input[type=text]{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:.82rem 1rem;font-size:.92rem;font-family:'Inter',sans-serif;color:var(--text-primary);outline:none;transition:border-color .2s,background .2s;}
         input:focus{border-color:var(--border-focus);background:var(--bg-input-focus);}
         input::placeholder{color:var(--text-placeholder);}
-        .btn-primary{width:100%;background:var(--btn-primary-bg);color:var(--btn-primary-text);border:none;border-radius:10px;padding:.9rem;font-size:.95rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;margin-top:.5rem;transition:opacity .2s,transform .2s;}
-        .btn-primary:hover{opacity:.88;transform:translateY(-1px);}
-        .divider{border:none;border-top:1px solid var(--border);margin:1.75rem 0;}
-        .alt-text{font-size:.82rem;color:var(--text-muted);text-align:center;}
-        .alt-text a{color:var(--text-secondary);text-decoration:none;font-weight:600;}
+        .btn{width:100%;background:var(--btn-primary-bg);color:var(--btn-primary-text);border:none;border-radius:10px;padding:.88rem;font-size:.93rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:opacity .2s,transform .2s;}
+        .btn:hover{opacity:.88;transform:translateY(-1px);}
+        /* Webcam Panel */
+        .cam-wrapper{position:relative;width:100%;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-bottom:1rem;}
+        #webcam-video{width:100%;height:100%;object-fit:cover;display:block;}
+        #scan-canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0;}
+        .scan-frame{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+        .scan-box{width:200px;height:200px;border:2px solid rgba(255,255,255,0.3);border-radius:16px;position:relative;}
+        .scan-box::before,.scan-box::after{content:'';position:absolute;width:24px;height:24px;border-color:var(--btn-primary-bg);border-style:solid;}
+        .scan-box::before{top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:6px 0 0 0;}
+        .scan-box::after{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 6px 0;}
+        /* Scan line animation */
+        .scan-line{position:absolute;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,var(--badge-success-text),transparent);border-radius:2px;animation:scanAnim 2.5s ease-in-out infinite;opacity:0;}
+        .scan-line.active{opacity:1;}
+        @keyframes scanAnim{0%{top:15%}50%{top:80%}100%{top:15%}}
+        /* Status overlay */
+        .status-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);opacity:0;transition:opacity .3s;pointer-events:none;padding:1.5rem;text-align:center;}
+        .status-overlay.visible{opacity:1;}
+        .status-icon{font-size:3rem;margin-bottom:1rem;}
+        .status-name{font-size:1.2rem;font-weight:800;color:#fff;margin-bottom:.35rem;}
+        .status-msg{font-size:.82rem;color:rgba(255,255,255,0.6);}
+        /* Cam controls */
+        .cam-btn{width:100%;background:var(--btn-primary-bg);color:var(--btn-primary-text);border:none;border-radius:10px;padding:.85rem;font-size:.9rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:opacity .2s,transform .2s;display:flex;align-items:center;justify-content:center;gap:.5rem;}
+        .cam-btn:hover{opacity:.88;transform:translateY(-1px);}
+        .cam-btn:disabled{opacity:.4;transform:none;cursor:default;}
+        .cam-status-text{text-align:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem;min-height:1.2em;}
+        /* Divider */
+        .divider{border:none;border-top:1px solid var(--border);margin:1.5rem 0;}
+        .alt-text{font-size:.8rem;color:var(--text-muted);text-align:center;}
+        .alt-text a{color:var(--text-secondary);text-decoration:none;font-weight:700;}
         .alt-text a:hover{color:var(--text-primary);}
+        /* No camera notice */
+        .no-cam-notice{background:var(--bg-input);border:1px solid var(--border);border-radius:12px;padding:2rem;text-align:center;}
+        .no-cam-notice p{font-size:.85rem;color:var(--text-muted);line-height:1.6;}
     </style>
     <script>(function(){const t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 </head>
 <body>
+    <div class="bg-pattern"></div>
     <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">☀ Light</button>
+
     <div class="card">
-        <a href="{% url 'home' %}" class="back-link">← Back to Portal</a>
-        <div class="icon-wrap">🎓</div>
-        <h2>Student Login</h2>
-        <p class="subtitle">Enter your enrollment number to access your attendance dashboard and leave portal.</p>
-        {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
-        <form method="POST">
-            {% csrf_token %}
-            <div class="form-group">
-                <label for="enrollment">Enrollment Number</label>
-                <input type="text" id="enrollment" name="enrollment_number" placeholder="e.g. ENR2024001" autocomplete="off" required>
+        <div class="card-header">
+            <a href="{% url 'home' %}" class="back-link">← Back to Portal</a>
+            <div class="icon-wrap">🎓</div>
+            <h2>Student Login</h2>
+            <p class="subtitle">Access your attendance record or apply for leave.</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" id="tab-enr" onclick="switchTab('enr')">📋 Enrollment Number</div>
+            {% if face_recognition_available %}
+            <div class="tab" id="tab-face" onclick="switchTab('face')">📷 Face Recognition</div>
+            {% endif %}
+        </div>
+
+        <!-- Enrollment Panel -->
+        <div class="panel active" id="panel-enr">
+            {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+            <form method="POST">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label>Enrollment Number</label>
+                    <input type="text" name="enrollment_number" placeholder="e.g. ENR2024001" autocomplete="off" required>
+                </div>
+                <button type="submit" class="btn">Access Dashboard →</button>
+            </form>
+            <hr class="divider">
+            <p class="alt-text">Faculty member? <a href="{% url 'faculty_login' %}">Faculty Portal</a></p>
+        </div>
+
+        <!-- Face Recognition Panel -->
+        {% if face_recognition_available %}
+        <div class="panel" id="panel-face">
+            <div class="cam-wrapper" id="cam-wrapper">
+                <video id="webcam-video" autoplay muted playsinline></video>
+                <canvas id="scan-canvas"></canvas>
+                <div class="scan-frame">
+                    <div class="scan-box">
+                        <div class="scan-line" id="scan-line"></div>
+                    </div>
+                </div>
+                <div class="status-overlay" id="status-overlay">
+                    <div class="status-icon" id="status-icon">✅</div>
+                    <div class="status-name" id="status-name"></div>
+                    <div class="status-msg" id="status-msg"></div>
+                </div>
             </div>
-            <button type="submit" class="btn-primary">Access Dashboard →</button>
-        </form>
-        <hr class="divider">
-        <p class="alt-text">Faculty member? <a href="{% url 'faculty_login' %}">Faculty Portal</a></p>
+            <button class="cam-btn" id="scan-btn" onclick="startScan()" disabled>⏳ Starting Camera…</button>
+            <div class="cam-status-text" id="cam-status">Requesting camera access…</div>
+            <hr class="divider">
+            <p class="alt-text">Your attendance will be marked automatically when your face is recognised.</p>
+        </div>
+        {% endif %}
     </div>
+
     <script>
+        /* ── THEME ── */
         function toggleTheme(){const h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('theme',t);document.getElementById('themeBtn').textContent=t==='dark'?'☀ Light':'🌙 Dark';}
         window.addEventListener('DOMContentLoaded',function(){const t=localStorage.getItem('theme')||'dark';document.getElementById('themeBtn').textContent=t==='dark'?'☀ Light':'🌙 Dark';});
+
+        /* ── TABS ── */
+        function switchTab(tab){
+            ['enr','face'].forEach(id=>{
+                const t=document.getElementById('tab-'+id);
+                const p=document.getElementById('panel-'+id);
+                if(t&&p){t.classList.toggle('active',id===tab);p.classList.toggle('active',id===tab);}
+            });
+            if(tab==='face') initCamera();
+            else stopCamera();
+        }
+
+        /* ── WEBCAM ── */
+        let stream=null, scanInterval=null, scanning=false;
+
+        async function initCamera(){
+            const statusEl=document.getElementById('cam-status');
+            const btn=document.getElementById('scan-btn');
+            statusEl.textContent='Requesting camera access…';
+            try{
+                stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'}});
+                const video=document.getElementById('webcam-video');
+                video.srcObject=stream;
+                await video.play();
+                btn.disabled=false;
+                btn.textContent='▶ Start Face Scan';
+                btn.onclick=startScan;
+                statusEl.textContent='Camera ready. Click "Start Face Scan" to begin.';
+            }catch(e){
+                statusEl.textContent='Camera access denied or not available.';
+                btn.textContent='Camera Unavailable';
+                btn.disabled=true;
+            }
+        }
+
+        function stopCamera(){
+            if(scanInterval){clearInterval(scanInterval);scanInterval=null;}
+            if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+            scanning=false;
+        }
+
+        function startScan(){
+            if(scanning) return;
+            scanning=true;
+            document.getElementById('scan-line').classList.add('active');
+            document.getElementById('scan-btn').textContent='⏳ Scanning…';
+            document.getElementById('scan-btn').disabled=true;
+            document.getElementById('cam-status').textContent='Looking for your face… Please face the camera.';
+            hideOverlay();
+            // Scan every 1.8 seconds, max 20 attempts
+            let attempts=0;
+            scanInterval=setInterval(()=>{
+                attempts++;
+                captureAndSend();
+                if(attempts>=20){
+                    clearInterval(scanInterval); scanInterval=null;
+                    scanning=false;
+                    document.getElementById('scan-line').classList.remove('active');
+                    document.getElementById('scan-btn').textContent='▶ Try Again';
+                    document.getElementById('scan-btn').disabled=false;
+                    document.getElementById('cam-status').textContent='Could not recognise your face. Please try again or use enrollment number.';
+                }
+            },1800);
+        }
+
+        function captureAndSend(){
+            const video=document.getElementById('webcam-video');
+            const canvas=document.getElementById('scan-canvas');
+            const ctx=canvas.getContext('2d');
+            canvas.width=video.videoWidth;
+            canvas.height=video.videoHeight;
+            ctx.drawImage(video,0,0);
+            const b64=canvas.toDataURL('image/jpeg',0.85);
+
+            fetch('/student/face-login/',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({image:b64})
+            })
+            .then(r=>r.json())
+            .then(data=>{
+                if(data.status==='matched'){
+                    clearInterval(scanInterval); scanInterval=null;
+                    scanning=false;
+                    document.getElementById('scan-line').classList.remove('active');
+                    showOverlay('✅', data.name,
+                        data.attendance_marked
+                            ? `Attendance marked for today! Redirecting…`
+                            : `Already marked present today. Redirecting…`,
+                        '#4ade80'
+                    );
+                    setTimeout(()=>{ window.location.href=data.redirect_url; },2200);
+                }
+                // silently ignore no_match and keep scanning
+            })
+            .catch(()=>{});
+        }
+
+        function showOverlay(icon, name, msg, color){
+            document.getElementById('status-icon').textContent=icon;
+            document.getElementById('status-name').textContent=name;
+            document.getElementById('status-name').style.color=color||'#fff';
+            document.getElementById('status-msg').textContent=msg;
+            document.getElementById('status-overlay').classList.add('visible');
+        }
+        function hideOverlay(){
+            document.getElementById('status-overlay').classList.remove('visible');
+        }
     </script>
 </body>
 </html>

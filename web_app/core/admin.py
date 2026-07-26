@@ -15,6 +15,7 @@ class FacultyProfileAdmin(admin.ModelAdmin):
     search_fields = ('user__username', 'user__first_name', 'user__last_name', 'department')
     actions = ['approve_faculty', 'revoke_faculty']
     readonly_fields = ('registered_at',)
+    list_per_page = 25
 
     def get_full_name(self, obj):
         return obj.user.get_full_name() or obj.user.username
@@ -63,6 +64,7 @@ class FacultyProfileAdmin(admin.ModelAdmin):
 class AlertConfigAdmin(admin.ModelAdmin):
     list_display = ('faculty', 'gmail_address', 'alert_threshold', 'email_alerts_enabled', 'last_run_at')
     list_filter = ('email_alerts_enabled',)
+    list_per_page = 25
 
 
 # ─────────────────────────────────────────────
@@ -75,6 +77,7 @@ class StudentAdmin(admin.ModelAdmin):
     search_fields = ('name', 'enrollment_number', 'department')
     list_filter = ('year', 'department', 'added_by')
     readonly_fields = ('created_at',)
+    list_per_page = 25
 
     def get_attendance_percentage(self, obj):
         pct = obj.attendance_percentage
@@ -92,6 +95,7 @@ class AttendanceAdmin(admin.ModelAdmin):
     list_display = ('student', 'date', 'time', 'status')
     list_filter = ('date', 'status')
     search_fields = ('student__name',)
+    list_per_page = 25
 
 
 @admin.register(LeaveApplication)
@@ -99,3 +103,4 @@ class LeaveAdmin(admin.ModelAdmin):
     list_display = ('student', 'date_requested', 'status', 'reviewed_by', 'reviewed_at')
     list_filter = ('status',)
     readonly_fields = ('reviewed_at',)
+    list_per_page = 25
