@@ -3,8 +3,12 @@ from .models import Student, AttendanceRecord, LeaveApplication
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ('name', 'enrollment_number', 'parent_email')
+    list_display = ('name', 'enrollment_number', 'parent_email', 'get_attendance_percentage')
     search_fields = ('name', 'enrollment_number')
+
+    def get_attendance_percentage(self, obj):
+        return f"{obj.attendance_percentage}%"
+    get_attendance_percentage.short_description = 'Attendance %'
 
 @admin.register(AttendanceRecord)
 class AttendanceAdmin(admin.ModelAdmin):

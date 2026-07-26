@@ -5,9 +5,17 @@ class Student(models.Model):
     enrollment_number = models.CharField(max_length=20, unique=True)
     parent_email = models.EmailField()
     parent_phone = models.CharField(max_length=15)
-    
-    # Stores the face encoding array as a string or binary for OpenCV comparison
     face_encoding = models.TextField(blank=True, null=True) 
+
+    @property
+    def attendance_percentage(self):
+        total_records = self.attendancerecord_set.count()
+        if total_records == 0:
+            return 0  # Prevents division by zero if no classes have happened
+            
+        present_count = self.attendancerecord_set.filter(status='Present').count()
+        percentage = (present_count / total_records) * 100
+        return round(percentage, 2)
 
     def __str__(self):
         return f"{self.name} ({self.enrollment_number})"
