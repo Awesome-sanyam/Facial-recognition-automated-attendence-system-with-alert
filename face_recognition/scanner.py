@@ -21,7 +21,7 @@ known_face_enrollments = []
 
 print("Loading known faces into memory...")
 for filename in os.listdir(KNOWN_FACES_DIR):
-    if filename.endswith(".jpg") or filename.endswith(".png"):
+    if filename.lower().endswith((".jpg", ".jpeg", ".png")):
         image_path = os.path.join(KNOWN_FACES_DIR, filename)
         image = face_recognition.load_image_file(image_path)
         
