@@ -50,6 +50,19 @@ class AlertConfiguration(models.Model):
             "Regards,\nUniversity Administration"
         )
     )
+    
+    # Twilio SMS Config
+    twilio_account_sid = models.CharField(max_length=100, blank=True)
+    twilio_auth_token = models.CharField(max_length=100, blank=True)
+    twilio_from_number = models.CharField(max_length=20, blank=True)
+    sms_alerts_enabled = models.BooleanField(default=False)
+    sms_alert_body = models.TextField(
+        default=(
+            "URGENT: {student_name} has {attendance_percentage}% attendance "
+            "(below {threshold}%). Contact administration."
+        )
+    )
+
     last_run_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):

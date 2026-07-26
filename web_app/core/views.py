@@ -324,6 +324,14 @@ def save_alert_config(request):
         config.email_alerts_enabled = request.POST.get("email_alerts_enabled") == "on"
         config.alert_email_subject = request.POST.get("alert_email_subject", "").strip()
         config.alert_email_body    = request.POST.get("alert_email_body", "").strip()
+        
+        # SMS settings
+        config.twilio_account_sid  = request.POST.get("twilio_account_sid", "").strip()
+        config.twilio_auth_token   = request.POST.get("twilio_auth_token", "").strip()
+        config.twilio_from_number  = request.POST.get("twilio_from_number", "").strip()
+        config.sms_alerts_enabled  = request.POST.get("sms_alerts_enabled") == "on"
+        config.sms_alert_body      = request.POST.get("sms_alert_body", "").strip()
+        
         config.save()
 
         # Write settings into the Robot Framework tasks.robot
@@ -344,9 +352,25 @@ def _update_robot_config(config):
         content = f.read()
 
     import re
-    # Use ^ to only match variables defined at the beginning of the line (in *** Variables *** section)
+    # Email Variables
     content = re.sub(r'(?m)^(\$\{GMAIL_USER\})\s+\S+', rf'\1     {config.gmail_address}', content)
     content = re.sub(r'(?m)^(\$\{GMAIL_PASS\})\s+\S+', rf'\1     {config.gmail_app_password}', content)
+    
+    # Twilio Variables (will be added if missing)
+    if '${TWILIO_SID}' in content:
+        content = re.sub(r'(?m)^(\$\{TWILIO_SID\})\s+.*', rf'\1     {config.twilio_account_sid}', content)
+        content = re.sub(r'(?m)^(\$\{TWILIO_TOKEN\})\s+.*', rf'\1     {config.twilio_auth_token}', content)
+        content = re.sub(r'(?m)^(\$\{TWILIO_FROM\})\s+.*', rf'\1     {config.twilio_from_number}', content)
+        content = re.sub(r'(?m)^(\$\{SMS_ENABLED\})\s+.*', rf'\1     {str(config.sms_alerts_enabled)}', content)
+    else:
+        # Add Twilio variables right after GMAIL variables if they don't exist
+        twilio_vars = f"""
+${{TWILIO_SID}}      {config.twilio_account_sid}
+${{TWILIO_TOKEN}}    {config.twilio_auth_token}
+${{TWILIO_FROM}}     {config.twilio_from_number}
+${{SMS_ENABLED}}     {str(config.sms_alerts_enabled)}
+"""
+        content = re.sub(r'(?m)^(\$\{GMAIL_PASS\}.*)$', rf'\1{twilio_vars}', content)
 
     with open(robot_path, 'w') as f:
         f.write(content)

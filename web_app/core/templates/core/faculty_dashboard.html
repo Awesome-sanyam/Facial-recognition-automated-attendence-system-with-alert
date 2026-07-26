@@ -341,7 +341,34 @@
                     </div>
                 </div>
                 <div style="margin-top:1.25rem;">
-                    <button type="submit" class="btn-submit">💾 Save Alert Configuration</button>
+                    <h3 style="margin-top:2rem; margin-bottom:1rem; font-size:1.1rem;">SMS Alerts (Twilio)</h3>
+                    <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+                        <input type="checkbox" name="sms_alerts_enabled" id="sms_alerts_enabled" {% if alert_config.sms_alerts_enabled %}checked{% endif %}>
+                        <label for="sms_alerts_enabled" style="margin:0; font-size:0.9rem; font-weight:600;">Enable SMS Alerts</label>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Twilio Account SID</label>
+                        <input type="text" name="twilio_account_sid" value="{{ alert_config.twilio_account_sid }}" placeholder="e.g. ACxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Twilio Auth Token</label>
+                        <input type="password" name="twilio_auth_token" value="{{ alert_config.twilio_auth_token }}" placeholder="Twilio Auth Token" autocomplete="off">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Twilio Phone Number (From)</label>
+                        <input type="text" name="twilio_from_number" value="{{ alert_config.twilio_from_number }}" placeholder="e.g. +1234567890" autocomplete="off">
+                    </div>
+
+                    <div class="form-group">
+                        <label>SMS Template Body</label>
+                        <textarea name="sms_alert_body" rows="3" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:0.75rem;color:var(--text-primary);font-family:'Inter',sans-serif;">{{ alert_config.sms_alert_body }}</textarea>
+                        <small style="color:var(--text-muted);">Use variables: {student_name}, {attendance_percentage}, {threshold}</small>
+                    </div>
+
+                    <button type="submit" class="btn" style="margin-top:1.5rem;">Save Alert Settings</button>
                 </div>
             </form>
 

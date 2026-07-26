@@ -74,7 +74,7 @@ class AlertConfigAdmin(admin.ModelAdmin):
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ('name', 'enrollment_number', 'department', 'year', 'parent_email', 'get_attendance_percentage', 'added_by')
+    list_display = ('name', 'enrollment_number', 'department', 'year', 'parent_email', 'parent_phone', 'get_attendance_percentage', 'added_by')
     search_fields = ('name', 'enrollment_number', 'department')
     list_filter = ('year', 'department', 'added_by')
     readonly_fields = ('created_at',)
