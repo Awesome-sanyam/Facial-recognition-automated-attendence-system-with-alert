@@ -5,3 +5,7 @@ __pycache__/
 .env
 db.sqlite3
 *.log
+*.png
+log.html
+output.xml
+report.html
