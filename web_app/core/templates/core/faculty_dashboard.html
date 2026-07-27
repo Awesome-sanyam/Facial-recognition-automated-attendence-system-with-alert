@@ -374,20 +374,30 @@
 
             <!-- RPA Bot Trigger -->
             <div class="rpa-panel">
-                <h3>🤖 Run RPA Alert Bot Now</h3>
-                <p>This will immediately run the Robot Framework bot using the saved configuration above. It will open Chrome, log into the Django Admin, scan all student attendance records, and dispatch warning emails to any students below the threshold.</p>
-                <form method="POST" action="{% url 'run_alert_bot' %}">
+                <h3>🤖 Run Alert Bot Now</h3>
+                <p>Immediately scans all students, and dispatches warning emails (Gmail) and SMS (Twilio) to any students below the attendance threshold. No browser or Chrome needed — runs directly and returns results instantly.</p>
+                <form method="POST" action="{% url 'run_alert_bot' %}" id="bot-form">
                     {% csrf_token %}
-                    <button type="submit" class="btn-run" onclick="this.textContent='⏳ Running...';this.disabled=true;">
+                    <button type="submit" class="btn-run" id="run-bot-btn">
                         ▶ Run Alert Bot Now
                     </button>
                 </form>
+                <script>
+                document.getElementById('bot-form').addEventListener('submit', function() {
+                    var btn = document.getElementById('run-bot-btn');
+                    setTimeout(function() {
+                        btn.textContent = '⏳ Sending alerts...';
+                        btn.disabled = true;
+                    }, 50);
+                });
+                </script>
                 {% if alert_config.last_run_at %}
                 <p class="last-run">⏱ Last run: {{ alert_config.last_run_at|date:"M d, Y" }} at {{ alert_config.last_run_at|time:"H:i" }}</p>
                 {% else %}
                 <p class="last-run">⏱ Bot has never been run yet.</p>
                 {% endif %}
             </div>
+
         </div>
 
         <!-- ══ TAB: SCANS ═════════════════════════════════ -->
