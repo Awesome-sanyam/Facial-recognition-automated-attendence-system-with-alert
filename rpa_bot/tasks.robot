@@ -9,14 +9,24 @@ Library           String
 # Using the direct URL to the Students table saves the bot an extra click
 ${ADMIN_URL}      http://127.0.0.1:8000/admin/core/student/
 ${ADMIN_USER}     admin
-${ADMIN_PASS}     admin123
+${ADMIN_PASS}     admin
 
-${GMAIL_USER}     sanyam.gehlot@gmail.com
-${GMAIL_PASS}     tgvvmvyscqvchpay
-${TWILIO_SID}      
-${TWILIO_TOKEN}    
-${TWILIO_FROM}     
-${SMS_ENABLED}     False
+${GMAIL_USER}     your_gmail@gmail.com
+${GMAIL_PASS}     your_16char_app_password
+
+# ── Twilio credentials are injected at runtime by Django (views.py _update_robot_config) ──
+# ── Configure them in the Faculty Dashboard → Alert Configuration tab ──────────────────────
+${TWILIO_SID}     CONFIGURE_VIA_DASHBOARD
+${TWILIO_TOKEN}   CONFIGURE_VIA_DASHBOARD
+${TWILIO_FROM}    CONFIGURE_VIA_DASHBOARD
+${SMS_ENABLED}    False
+
+
+
+
+
+
+
 
 *** Tasks ***
 Process Weekly Attendance Alerts
@@ -26,7 +36,9 @@ Process Weekly Attendance Alerts
     Authorize SMS Server
     Audit Attendance Records
     Log    Weekly audit completed successfully!
-    [Teardown]    Close Browser
+    [Teardown]    Run Keywords
+    ...    Close Browser
+    ...    AND    Close Connection
 
 *** Keywords ***
 Open Admin Portal
@@ -37,7 +49,7 @@ Login To System
     Input Text        id:id_username    ${ADMIN_USER}
     Input Password    id:id_password    ${ADMIN_PASS}
     Click Button      css:input[type='submit']
-    Wait Until Page Contains    Select student to change
+    Wait Until Page Contains    Students    timeout=20s
 
 Authorize Email Server
     Authorize    account=${GMAIL_USER}    password=${GMAIL_PASS}
@@ -84,4 +96,10 @@ Send Warning SMS
     [Arguments]    ${recipient_phone}    ${student_name}    ${attendance_percentage}
     ${body}=       Set Variable    URGENT: ${student_name} has ${attendance_percentage} attendance (below 75%). Contact administration immediately.
     
-    Send Sms    to_number=${recipient_phone}    body=${body}
+    # Ensure phone is in E.164 format for Twilio (Indian numbers need +91 prefix)
+    ${clean_phone}=    Remove String    ${recipient_phone}    ${SPACE}
+    ${formatted_phone}=    Set Variable If
+    ...    '${clean_phone}'.startswith('+')    ${clean_phone}
+    ...    '+91${clean_phone}'
+    
+    Send Sms    to_number=${formatted_phone}    body=${body}

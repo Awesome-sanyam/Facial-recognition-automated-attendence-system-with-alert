@@ -353,24 +353,16 @@ def _update_robot_config(config):
 
     import re
     # Email Variables
-    content = re.sub(r'(?m)^(\$\{GMAIL_USER\})\s+\S+', rf'\1     {config.gmail_address}', content)
-    content = re.sub(r'(?m)^(\$\{GMAIL_PASS\})\s+\S+', rf'\1     {config.gmail_app_password}', content)
+    if config.gmail_address:
+        content = re.sub(r'(?m)^(\$\{GMAIL_USER\})[ \t]+\S+', rf'\1     {config.gmail_address}', content)
+    if config.gmail_app_password:
+        content = re.sub(r'(?m)^(\$\{GMAIL_PASS\})[ \t]+\S+', rf'\1     {config.gmail_app_password}', content)
     
-    # Twilio Variables (will be added if missing)
-    if '${TWILIO_SID}' in content:
-        content = re.sub(r'(?m)^(\$\{TWILIO_SID\})\s+.*', rf'\1     {config.twilio_account_sid}', content)
-        content = re.sub(r'(?m)^(\$\{TWILIO_TOKEN\})\s+.*', rf'\1     {config.twilio_auth_token}', content)
-        content = re.sub(r'(?m)^(\$\{TWILIO_FROM\})\s+.*', rf'\1     {config.twilio_from_number}', content)
-        content = re.sub(r'(?m)^(\$\{SMS_ENABLED\})\s+.*', rf'\1     {str(config.sms_alerts_enabled)}', content)
-    else:
-        # Add Twilio variables right after GMAIL variables if they don't exist
-        twilio_vars = f"""
-${{TWILIO_SID}}      {config.twilio_account_sid}
-${{TWILIO_TOKEN}}    {config.twilio_auth_token}
-${{TWILIO_FROM}}     {config.twilio_from_number}
-${{SMS_ENABLED}}     {str(config.sms_alerts_enabled)}
-"""
-        content = re.sub(r'(?m)^(\$\{GMAIL_PASS\}.*)$', rf'\1{twilio_vars}', content)
+    # Twilio Variables — always overwrite to keep in sync
+    content = re.sub(r'(?m)^(\$\{TWILIO_SID\})[ \t]+.*', rf'\1     {config.twilio_account_sid}', content)
+    content = re.sub(r'(?m)^(\$\{TWILIO_TOKEN\})[ \t]+.*', rf'\1     {config.twilio_auth_token}', content)
+    content = re.sub(r'(?m)^(\$\{TWILIO_FROM\})[ \t]+.*', rf'\1     {config.twilio_from_number}', content)
+    content = re.sub(r'(?m)^(\$\{SMS_ENABLED\})[ \t]+.*', rf'\1     {str(config.sms_alerts_enabled)}', content)
 
     with open(robot_path, 'w') as f:
         f.write(content)
@@ -383,24 +375,30 @@ def run_alert_bot(request):
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         venv_robot = os.path.join(project_root, '.venv', 'bin', 'robot')
         robot_file = os.path.join(project_root, 'rpa_bot', 'tasks.robot')
+        rpa_bot_dir = os.path.join(project_root, 'rpa_bot')
 
         profile = request.user.faculty_profile
         config, _ = AlertConfiguration.objects.get_or_create(faculty=profile)
 
+        # Always write the latest credentials into tasks.robot BEFORE running the bot
+        _update_robot_config(config)
+
         try:
             result = subprocess.run(
                 [venv_robot, robot_file],
-                capture_output=True, text=True, timeout=120, cwd=project_root
+                capture_output=True, text=True, timeout=180,
+                cwd=rpa_bot_dir  # run from rpa_bot/ so EmailLibrary.py and SmsLibrary.py are importable
             )
             if result.returncode == 0:
                 config.last_run_at = timezone.now()
                 config.save()
-                messages.success(request, "RPA Alert Bot ran successfully! Emails have been dispatched.")
+                messages.success(request, "✅ RPA Alert Bot ran successfully! Emails & SMS have been dispatched.")
             else:
-                messages.error(request, f"Bot finished with errors. Check output: {result.stdout[-500:] or result.stderr[-500:]}")
+                error_detail = result.stderr[-800:] or result.stdout[-800:]
+                messages.error(request, f"❌ Bot finished with errors: {error_detail}")
         except subprocess.TimeoutExpired:
-            messages.error(request, "Bot timed out after 2 minutes.")
+            messages.error(request, "⏱ Bot timed out after 3 minutes.")
         except FileNotFoundError:
-            messages.error(request, "Could not find the Robot Framework executable. Ensure dependencies are installed.")
+            messages.error(request, "❌ Could not find the Robot Framework executable. Ensure dependencies are installed.")
 
     return redirect('/faculty/dashboard/?tab=alerts')
