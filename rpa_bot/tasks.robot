@@ -11,15 +11,16 @@ ${ADMIN_URL}      http://127.0.0.1:8000/admin/core/student/
 ${ADMIN_USER}     admin
 ${ADMIN_PASS}     admin
 
+# ── Gmail credentials ─ configure via Faculty Dashboard UI ───────────────────
 ${GMAIL_USER}     your_gmail@gmail.com
 ${GMAIL_PASS}     your_16char_app_password
 
-# ── Twilio credentials are injected at runtime by Django (views.py _update_robot_config) ──
-# ── Configure them in the Faculty Dashboard → Alert Configuration tab ──────────────────────
-${TWILIO_SID}     CONFIGURE_VIA_DASHBOARD
-${TWILIO_TOKEN}   CONFIGURE_VIA_DASHBOARD
-${TWILIO_FROM}    CONFIGURE_VIA_DASHBOARD
+# ── Twilio credentials ─ configure via Faculty Dashboard UI ──────────────────
+${TWILIO_SID}     YOUR_TWILIO_ACCOUNT_SID
+${TWILIO_TOKEN}   YOUR_TWILIO_AUTH_TOKEN
+${TWILIO_FROM}    YOUR_TWILIO_PHONE_NUMBER
 ${SMS_ENABLED}    False
+
 
 
 
