@@ -28,8 +28,12 @@ from .models import (
 # ─────────────────────────────────────────────
 
 def is_approved_faculty(user):
+    if not user.is_authenticated:
+        return False
+    # Superusers always get access
+    if user.is_superuser:
+        return True
     return (
-        user.is_authenticated and
         user.is_staff and
         hasattr(user, 'faculty_profile') and
         user.faculty_profile.is_approved
@@ -371,126 +375,137 @@ def _update_robot_config(config):
 
 @user_passes_test(is_approved_faculty, login_url='/faculty/login/')
 def run_alert_bot(request):
-    """
-    Sends attendance alerts directly via Python (smtplib + Twilio).
-    This bypasses the Selenium/Chrome approach entirely, which caused a deadlock
-    because Django's server was blocked waiting for a subprocess that was trying
-    to connect back to the same blocked Django server.
-    """
+    """Sends attendance alerts directly via Python (smtplib + Twilio)."""
+    import traceback, logging
+
+    log_path = '/tmp/rpa_debug.log'
+    logging.basicConfig(filename=log_path, level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)s %(message)s', filemode='w')
+    log = logging.getLogger('rpa_bot')
+
     if request.method != "POST":
         return redirect('/faculty/dashboard/?tab=alerts')
 
-    profile = request.user.faculty_profile
-    config, _ = AlertConfiguration.objects.get_or_create(faculty=profile)
-
-    # ── Validate config ──────────────────────────────────────────────────────
-    if not config.gmail_address or not config.gmail_app_password:
-        messages.error(request, "❌ Gmail credentials not configured. Go to Alert Configuration and save your Gmail address and App Password first.")
-        return redirect('/faculty/dashboard/?tab=alerts')
-
-    # ── Query students below threshold directly from DB ──────────────────────
-    all_students = Student.objects.all()
-    threshold = config.alert_threshold
-    low_students = [s for s in all_students if s.attendance_percentage < threshold]
-
-    if not low_students:
-        messages.warning(request, f"✅ No students are below the {threshold}% attendance threshold. No alerts needed.")
-        return redirect('/faculty/dashboard/?tab=alerts')
-
-    # ── Connect to Gmail SMTP once ───────────────────────────────────────────
-    smtp_server = None
-    email_errors = []
-    email_sent = 0
     try:
-        smtp_server = smtplib.SMTP('smtp.gmail.com', 587)
-        smtp_server.starttls()
-        smtp_server.login(config.gmail_address, config.gmail_app_password)
-    except Exception as e:
-        email_errors.append(f"Gmail connection failed: {str(e)}")
+        log.info("=== RUN ALERT BOT STARTED ===")
+        log.info(f"User: {request.user.username}")
+
+        profile = request.user.faculty_profile
+        config, _ = AlertConfiguration.objects.get_or_create(faculty=profile)
+        log.info(f"Config: gmail={config.gmail_address!r}, sms_enabled={config.sms_alerts_enabled}, threshold={config.alert_threshold}")
+
+        if not config.gmail_address or not config.gmail_app_password:
+            log.error("Gmail credentials missing")
+            messages.error(request, "Gmail credentials not configured. Set them in Alert Configuration first.")
+            return redirect('/faculty/dashboard/?tab=alerts')
+
+        all_students = list(Student.objects.all())
+        threshold = config.alert_threshold
+        low_students = [s for s in all_students if s.attendance_percentage < threshold]
+        log.info(f"Students: total={len(all_students)}, below threshold={len(low_students)}")
+
+        if not low_students:
+            messages.warning(request, f"All students above {threshold}% — no alerts needed.")
+            return redirect('/faculty/dashboard/?tab=alerts')
+
+        # Gmail SMTP
         smtp_server = None
-
-    # ── Connect Twilio ────────────────────────────────────────────────────────
-    twilio_client = None
-    sms_errors = []
-    sms_sent = 0
-    if config.sms_alerts_enabled and config.twilio_account_sid and config.twilio_auth_token:
+        email_errors = []
+        email_sent = 0
         try:
-            from twilio.rest import Client as TwilioClient
-            twilio_client = TwilioClient(config.twilio_account_sid, config.twilio_auth_token)
+            log.info("Connecting Gmail SMTP...")
+            smtp_server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
+            smtp_server.starttls()
+            smtp_server.login(config.gmail_address, config.gmail_app_password)
+            log.info("Gmail connected OK")
         except Exception as e:
-            sms_errors.append(f"Twilio init failed: {str(e)}")
+            log.error(f"Gmail SMTP failed: {e}")
+            email_errors.append(f"Gmail failed: {str(e)}")
 
-    # ── Send alerts for each low-attendance student ──────────────────────────
-    for student in low_students:
-        pct = student.attendance_percentage
-        name = student.name
+        # Twilio
+        twilio_client = None
+        sms_errors = []
+        sms_sent = 0
+        if config.sms_alerts_enabled and config.twilio_account_sid and config.twilio_auth_token:
+            try:
+                from twilio.rest import Client as TwilioClient
+                twilio_client = TwilioClient(config.twilio_account_sid, config.twilio_auth_token)
+                log.info("Twilio connected OK")
+            except Exception as e:
+                log.error(f"Twilio failed: {e}")
+                sms_errors.append(f"Twilio failed: {str(e)}")
 
-        # Build email body from template
-        body = config.alert_email_body.format(
-            student_name=name,
-            attendance_percentage=pct,
-            threshold=threshold
-        )
+        # Send per student
+        for student in low_students:
+            pct = student.attendance_percentage
+            name = student.name
+            log.info(f"Student: {name} ({pct}%)")
 
-        # Send Email
+            try:
+                body = config.alert_email_body.format(
+                    student_name=name, attendance_percentage=pct, threshold=threshold)
+            except Exception:
+                body = (f"Dear Parent/Guardian,\n\n{name} has {pct}% attendance "
+                        f"(below {threshold}% threshold). Contact administration.\n\nRegards,\nUniversity")
+
+            if smtp_server:
+                try:
+                    msg = EmailMessage()
+                    msg['Subject'] = f"URGENT: Low Attendance Warning — {name}"
+                    msg['From'] = config.gmail_address
+                    msg['To'] = student.parent_email
+                    msg.set_content(body)
+                    smtp_server.send_message(msg)
+                    email_sent += 1
+                    log.info(f"  Email sent -> {student.parent_email}")
+                except Exception as e:
+                    log.error(f"  Email failed -> {student.parent_email}: {e}")
+                    email_errors.append(f"Email to {student.parent_email}: {str(e)}")
+
+            if twilio_client and student.parent_phone:
+                try:
+                    phone = student.parent_phone.strip()
+                    if not phone.startswith('+'):
+                        phone = '+91' + phone
+                    try:
+                        sms_body = config.sms_alert_body.format(
+                            student_name=name, attendance_percentage=pct, threshold=threshold)
+                    except Exception:
+                        sms_body = f"URGENT: {name} has {pct}% attendance (below {threshold}%). Contact administration."
+
+                    twilio_client.messages.create(
+                        body=sms_body, from_=config.twilio_from_number, to=phone)
+                    sms_sent += 1
+                    log.info(f"  SMS sent -> {phone}")
+                except Exception as e:
+                    log.error(f"  SMS failed -> {student.parent_phone}: {e}")
+                    sms_errors.append(f"SMS to {student.parent_phone}: {str(e)}")
+
         if smtp_server:
             try:
-                msg = EmailMessage()
-                msg['Subject'] = config.alert_email_subject.format(
-                    student_name=name,
-                    attendance_percentage=pct
-                )
-                msg['From'] = config.gmail_address
-                msg['To'] = student.parent_email
-                msg.set_content(body)
-                smtp_server.send_message(msg)
-                email_sent += 1
-            except Exception as e:
-                email_errors.append(f"Email to {student.parent_email} ({name}): {str(e)}")
+                smtp_server.quit()
+            except Exception:
+                pass
 
-        # Send SMS
-        if twilio_client and student.parent_phone:
-            try:
-                # Ensure E.164 format for Indian numbers
-                phone = student.parent_phone.strip()
-                if not phone.startswith('+'):
-                    phone = '+91' + phone
+        config.last_run_at = timezone.now()
+        config.save()
+        log.info(f"Done: emails={email_sent}, sms={sms_sent}, email_errors={email_errors}, sms_errors={sms_errors}")
 
-                sms_body = config.sms_alert_body.format(
-                    student_name=name,
-                    attendance_percentage=pct,
-                    threshold=threshold
-                )
-                twilio_client.messages.create(
-                    body=sms_body,
-                    from_=config.twilio_from_number,
-                    to=phone
-                )
-                sms_sent += 1
-            except Exception as e:
-                sms_errors.append(f"SMS to {student.parent_phone} ({name}): {str(e)}")
+        summary = (f"Scanned {len(all_students)} students — {len(low_students)} below {threshold}%. "
+                   f"{email_sent} email(s) sent.")
+        if config.sms_alerts_enabled:
+            summary += f" {sms_sent} SMS sent."
 
-    # ── Close SMTP connection ─────────────────────────────────────────────────
-    if smtp_server:
-        try:
-            smtp_server.quit()
-        except Exception:
-            pass
+        if email_errors or sms_errors:
+            all_errors = email_errors + sms_errors
+            messages.warning(request, f"{summary} | Errors: {' | '.join(all_errors[:3])}")
+        else:
+            messages.success(request, f"SUCCESS: {summary}")
 
-    # ── Update last run timestamp ─────────────────────────────────────────────
-    config.last_run_at = timezone.now()
-    config.save()
-
-    # ── Build result message ──────────────────────────────────────────────────
-    summary = f"📊 Scanned {len(all_students)} students — {len(low_students)} below {threshold}% threshold. "
-    summary += f"📧 {email_sent} email(s) sent. "
-    if config.sms_alerts_enabled:
-        summary += f"📱 {sms_sent} SMS sent."
-
-    if email_errors or sms_errors:
-        all_errors = email_errors + sms_errors
-        messages.warning(request, f"{summary} ⚠️ Some errors: {' | '.join(all_errors[:3])}")
-    else:
-        messages.success(request, f"✅ {summary}")
+    except Exception as e:
+        tb = traceback.format_exc()
+        log.critical(f"UNCAUGHT EXCEPTION:\n{tb}")
+        messages.error(request, f"Error: {str(e)}")
 
     return redirect('/faculty/dashboard/?tab=alerts')
+
