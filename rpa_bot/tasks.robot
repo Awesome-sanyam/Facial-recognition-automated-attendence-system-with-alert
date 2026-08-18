@@ -12,14 +12,14 @@ ${ADMIN_USER}     admin
 ${ADMIN_PASS}     admin
 
 # ── Gmail credentials ─ configure via Faculty Dashboard UI ───────────────────
-${GMAIL_USER}     your_gmail@gmail.com
-${GMAIL_PASS}     your_16char_app_password
+${GMAIL_USER}     test@gmail.com
+${GMAIL_PASS}     testpass
 
 # ── Twilio credentials ─ configure via Faculty Dashboard UI ──────────────────
-${TWILIO_SID}     YOUR_TWILIO_ACCOUNT_SID
-${TWILIO_TOKEN}   YOUR_TWILIO_AUTH_TOKEN
-${TWILIO_FROM}    YOUR_TWILIO_PHONE_NUMBER
-${SMS_ENABLED}    False
+${TWILIO_SID}     
+${TWILIO_TOKEN}     
+${TWILIO_FROM}     
+${SMS_ENABLED}     False
 
 
 

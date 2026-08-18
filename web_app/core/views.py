@@ -6,8 +6,13 @@ from django.contrib import messages
 from django.utils import timezone
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-import subprocess, os, sys, json, smtplib, threading
+from django.db.models import Count, Q
+import os, sys, json, smtplib
 from email.message import EmailMessage
+import logging
+
+# Module-level logger — configured in settings.py LOGGING dict
+logger = logging.getLogger(__name__)
 
 # Add face_recognition module to path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'face_recognition'))
@@ -134,7 +139,14 @@ def apply_leave(request, enrollment_number):
     student = get_object_or_404(Student, enrollment_number=enrollment_number)
     if request.method == "POST":
         date = request.POST.get("date_requested")
-        reason = request.POST.get("reason")
+        reason = request.POST.get("reason", "").strip()
+        if not date or not reason:
+            messages.error(request, "Both date and reason are required.")
+            return render(request, 'core/apply_leave.html', {'student': student})
+        # FIX: Prevent duplicate leave applications for the same date.
+        if LeaveApplication.objects.filter(student=student, date_requested=date).exists():
+            messages.warning(request, "You have already submitted a leave application for that date.")
+            return redirect('dashboard', enrollment_number=enrollment_number)
         LeaveApplication.objects.create(student=student, date_requested=date, reason=reason)
         messages.success(request, "Leave application submitted successfully.")
         return redirect('dashboard', enrollment_number=enrollment_number)
@@ -225,17 +237,41 @@ def faculty_logout(request):
 
 @user_passes_test(is_approved_faculty, login_url='/faculty/login/')
 def faculty_dashboard(request):
-    profile = request.user.faculty_profile
-    students = Student.objects.all().order_by('name')
+    # FIX: Superuser may have no faculty_profile — auto-create to prevent crash.
+    profile = getattr(request.user, 'faculty_profile', None)
+    if profile is None:
+        profile, _ = FacultyProfile.objects.get_or_create(
+            user=request.user,
+            defaults={'department': 'Administration', 'is_approved': True}
+        )
+
+    # FIX: Use annotate() so attendance_percentage is computed in ONE query,
+    # not 2 queries per student (the old N+1 bug).
+    students = Student.objects.annotate(
+        total_classes=Count('attendancerecord', distinct=True),
+        present_count=Count(
+            'attendancerecord',
+            filter=Q(attendancerecord__status='Present'),
+            distinct=True
+        )
+    ).order_by('name')
+
     recent_attendance = AttendanceRecord.objects.select_related('student').order_by('-date', '-time')[:60]
     pending_leaves = LeaveApplication.objects.filter(status='Pending').select_related('student')
-    all_leaves = LeaveApplication.objects.select_related('student').order_by('-date_requested')[:20]
+    # FIX: include reviewed_by__user to avoid extra queries in template
+    all_leaves = LeaveApplication.objects.select_related(
+        'student', 'reviewed_by__user'
+    ).order_by('-date_requested')[:20]
 
     alert_config, _ = AlertConfiguration.objects.get_or_create(faculty=profile)
 
-    # Stats
+    # FIX: Compute low_attendance_count from annotations (DB-level, no Python loop)
+    threshold = alert_config.alert_threshold
     total_students = students.count()
-    low_attendance_count = sum(1 for s in students if s.attendance_percentage < alert_config.alert_threshold)
+    low_attendance_count = sum(
+        1 for s in students
+        if s.total_classes == 0 or (s.present_count / s.total_classes * 100) < threshold
+    )
     pending_count = pending_leaves.count()
 
     context = {
@@ -261,7 +297,7 @@ def faculty_dashboard(request):
 @user_passes_test(is_approved_faculty, login_url='/faculty/login/')
 def add_student(request):
     if request.method == "POST":
-        profile = request.user.faculty_profile
+        profile = getattr(request.user, 'faculty_profile', None)
         name       = request.POST.get("name", "").strip()
         enr        = request.POST.get("enrollment_number", "").strip()
         email      = request.POST.get("email", "").strip()
@@ -270,7 +306,9 @@ def add_student(request):
         department = request.POST.get("department", "").strip()
         year       = request.POST.get("year", 1)
 
-        if Student.objects.filter(enrollment_number=enr).exists():
+        if not name or not enr:
+            messages.error(request, "Student name and enrollment number are required.")
+        elif Student.objects.filter(enrollment_number=enr).exists():
             messages.error(request, f"Enrollment number '{enr}' already exists.")
         else:
             Student.objects.create(
@@ -279,6 +317,13 @@ def add_student(request):
                 department=department, year=year, added_by=profile
             )
             messages.success(request, f"Student '{name}' added successfully.")
+            # FIX: Invalidate face recognition cache so the new student can
+            # immediately log in via face scan without a server restart.
+            try:
+                from face_login import invalidate_cache
+                invalidate_cache()
+            except ImportError:
+                pass
     return redirect('/faculty/dashboard/?tab=students')
 
 
@@ -298,8 +343,11 @@ def delete_student(request, student_id):
 
 @user_passes_test(is_approved_faculty, login_url='/faculty/login/')
 def manage_leave(request, leave_id, action):
+    # FIX: Reject GET requests — approving/rejecting must be an intentional POST.
+    if request.method != 'POST':
+        return redirect('/faculty/dashboard/?tab=leaves')
     leave = get_object_or_404(LeaveApplication, id=leave_id)
-    profile = request.user.faculty_profile
+    profile = getattr(request.user, 'faculty_profile', None)
     if action == 'approve':
         leave.status = 'Approved'
         leave.reviewed_by = profile
@@ -310,6 +358,9 @@ def manage_leave(request, leave_id, action):
         leave.reviewed_by = profile
         leave.reviewed_at = timezone.now()
         messages.warning(request, f"Leave for {leave.student.name} rejected.")
+    else:
+        messages.error(request, "Invalid leave action.")
+        return redirect('/faculty/dashboard/?tab=leaves')
     leave.save()
     return redirect('/faculty/dashboard/?tab=leaves')
 
@@ -321,25 +372,28 @@ def manage_leave(request, leave_id, action):
 @user_passes_test(is_approved_faculty, login_url='/faculty/login/')
 def save_alert_config(request):
     if request.method == "POST":
-        profile = request.user.faculty_profile
+        profile = getattr(request.user, 'faculty_profile', None)
+        if profile is None:
+            messages.error(request, "No faculty profile found.")
+            return redirect('/faculty/dashboard/?tab=alerts')
         config, _ = AlertConfiguration.objects.get_or_create(faculty=profile)
         config.gmail_address       = request.POST.get("gmail_address", "").strip()
         config.gmail_app_password  = request.POST.get("gmail_app_password", "").strip()
-        config.alert_threshold     = int(request.POST.get("alert_threshold", 75))
+        # FIX: Clamp threshold to valid 0–100 range to prevent logic errors.
+        raw_threshold = request.POST.get("alert_threshold", "75")
+        config.alert_threshold     = max(0, min(100, int(raw_threshold) if raw_threshold.isdigit() else 75))
         config.email_alerts_enabled = request.POST.get("email_alerts_enabled") == "on"
         config.alert_email_subject = request.POST.get("alert_email_subject", "").strip()
         config.alert_email_body    = request.POST.get("alert_email_body", "").strip()
-        
+
         # SMS settings
         config.twilio_account_sid  = request.POST.get("twilio_account_sid", "").strip()
         config.twilio_auth_token   = request.POST.get("twilio_auth_token", "").strip()
         config.twilio_from_number  = request.POST.get("twilio_from_number", "").strip()
         config.sms_alerts_enabled  = request.POST.get("sms_alerts_enabled") == "on"
         config.sms_alert_body      = request.POST.get("sms_alert_body", "").strip()
-        
-        config.save()
 
-        # Write settings into the Robot Framework tasks.robot
+        config.save()
         _update_robot_config(config)
         messages.success(request, "Alert configuration saved and applied to the RPA bot.")
     return redirect('/faculty/dashboard/?tab=alerts')
@@ -357,17 +411,19 @@ def _update_robot_config(config):
         content = f.read()
 
     import re
-    # Email Variables
+    # FIX: Use '[ \t]+.*' (greedy to end-of-line) instead of '[ \t]+\S+' so
+    # multi-word values like Google App Passwords (e.g. 'abcd efgh ijkl mnop')
+    # are not silently truncated at the first space.
     if config.gmail_address:
-        content = re.sub(r'(?m)^(\$\{GMAIL_USER\})[ \t]+\S+', rf'\1     {config.gmail_address}', content)
+        content = re.sub(r'(?m)^(\$\{GMAIL_USER\})[ \t]+.*', rf'\1     {config.gmail_address}', content)
     if config.gmail_app_password:
-        content = re.sub(r'(?m)^(\$\{GMAIL_PASS\})[ \t]+\S+', rf'\1     {config.gmail_app_password}', content)
-    
+        content = re.sub(r'(?m)^(\$\{GMAIL_PASS\})[ \t]+.*', rf'\1     {config.gmail_app_password}', content)
+
     # Twilio Variables — always overwrite to keep in sync
-    content = re.sub(r'(?m)^(\$\{TWILIO_SID\})[ \t]+.*', rf'\1     {config.twilio_account_sid}', content)
-    content = re.sub(r'(?m)^(\$\{TWILIO_TOKEN\})[ \t]+.*', rf'\1     {config.twilio_auth_token}', content)
-    content = re.sub(r'(?m)^(\$\{TWILIO_FROM\})[ \t]+.*', rf'\1     {config.twilio_from_number}', content)
-    content = re.sub(r'(?m)^(\$\{SMS_ENABLED\})[ \t]+.*', rf'\1     {str(config.sms_alerts_enabled)}', content)
+    content = re.sub(r'(?m)^(\$\{TWILIO_SID\})[ \t]+.*',   rf'\1     {config.twilio_account_sid}',  content)
+    content = re.sub(r'(?m)^(\$\{TWILIO_TOKEN\})[ \t]+.*', rf'\1     {config.twilio_auth_token}',   content)
+    content = re.sub(r'(?m)^(\$\{TWILIO_FROM\})[ \t]+.*',  rf'\1     {config.twilio_from_number}',  content)
+    content = re.sub(r'(?m)^(\$\{SMS_ENABLED\})[ \t]+.*',  rf'\1     {str(config.sms_alerts_enabled)}', content)
 
     with open(robot_path, 'w') as f:
         f.write(content)
@@ -375,54 +431,70 @@ def _update_robot_config(config):
 
 @user_passes_test(is_approved_faculty, login_url='/faculty/login/')
 def run_alert_bot(request):
-    """Sends attendance alerts directly via Python (smtplib + Twilio)."""
-    import traceback, logging
+    """Sends attendance alerts directly via Python (smtplib + Twilio).
 
-    log_path = '/tmp/rpa_debug.log'
-    logging.basicConfig(filename=log_path, level=logging.DEBUG,
-                        format='%(asctime)s %(levelname)s %(message)s', filemode='w')
-    log = logging.getLogger('rpa_bot')
+    Uses the module-level 'logger' (configured in settings.py LOGGING)
+    so logs go to /tmp/rpa_debug.log AND the console.
+    """
+    import traceback
 
     if request.method != "POST":
         return redirect('/faculty/dashboard/?tab=alerts')
 
     try:
-        log.info("=== RUN ALERT BOT STARTED ===")
-        log.info(f"User: {request.user.username}")
+        logger.info("=== RUN ALERT BOT STARTED ===")
+        logger.info("User: %s", request.user.username)
 
-        profile = request.user.faculty_profile
+        # FIX: Use getattr to prevent crash when superuser has no faculty_profile
+        profile = getattr(request.user, 'faculty_profile', None)
+        if profile is None:
+            messages.error(request, "No faculty profile found. Cannot run alert bot.")
+            return redirect('/faculty/dashboard/?tab=alerts')
+
         config, _ = AlertConfiguration.objects.get_or_create(faculty=profile)
-        log.info(f"Config: gmail={config.gmail_address!r}, sms_enabled={config.sms_alerts_enabled}, threshold={config.alert_threshold}")
+        logger.info("Config: gmail=%r, sms_enabled=%s, threshold=%s",
+                    config.gmail_address, config.sms_alerts_enabled, config.alert_threshold)
 
         if not config.gmail_address or not config.gmail_app_password:
-            log.error("Gmail credentials missing")
+            logger.error("Gmail credentials missing")
             messages.error(request, "Gmail credentials not configured. Set them in Alert Configuration first.")
             return redirect('/faculty/dashboard/?tab=alerts')
 
-        all_students = list(Student.objects.all())
+        # FIX: Use annotate() to compute attendance in a single query — no N+1 here.
         threshold = config.alert_threshold
-        low_students = [s for s in all_students if s.attendance_percentage < threshold]
-        log.info(f"Students: total={len(all_students)}, below threshold={len(low_students)}")
+        all_students = list(Student.objects.annotate(
+            total_classes=Count('attendancerecord', distinct=True),
+            present_count=Count(
+                'attendancerecord',
+                filter=Q(attendancerecord__status='Present'),
+                distinct=True
+            )
+        ))
+        low_students = [
+            s for s in all_students
+            if s.total_classes == 0 or (s.present_count / s.total_classes * 100) < threshold
+        ]
+        logger.info("Students: total=%d, below threshold=%d", len(all_students), len(low_students))
 
         if not low_students:
-            messages.warning(request, f"All students above {threshold}% — no alerts needed.")
+            messages.warning(request, f"✅ All students are above {threshold}% — no alerts needed.")
             return redirect('/faculty/dashboard/?tab=alerts')
 
-        # Gmail SMTP
+        # ── Gmail SMTP ──────────────────────────────────────────────────────────
         smtp_server = None
         email_errors = []
         email_sent = 0
         try:
-            log.info("Connecting Gmail SMTP...")
+            logger.info("Connecting Gmail SMTP...")
             smtp_server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
             smtp_server.starttls()
             smtp_server.login(config.gmail_address, config.gmail_app_password)
-            log.info("Gmail connected OK")
+            logger.info("Gmail connected OK")
         except Exception as e:
-            log.error(f"Gmail SMTP failed: {e}")
-            email_errors.append(f"Gmail failed: {str(e)}")
+            logger.error("Gmail SMTP failed: %s", e)
+            email_errors.append(f"Gmail failed: {e}")
 
-        # Twilio
+        # ── Twilio ──────────────────────────────────────────────────────────────
         twilio_client = None
         sms_errors = []
         sms_sent = 0
@@ -430,23 +502,27 @@ def run_alert_bot(request):
             try:
                 from twilio.rest import Client as TwilioClient
                 twilio_client = TwilioClient(config.twilio_account_sid, config.twilio_auth_token)
-                log.info("Twilio connected OK")
+                logger.info("Twilio client OK")
             except Exception as e:
-                log.error(f"Twilio failed: {e}")
-                sms_errors.append(f"Twilio failed: {str(e)}")
+                logger.error("Twilio failed: %s", e)
+                sms_errors.append(f"Twilio: {e}")
 
-        # Send per student
+        # ── Send per-student alerts ─────────────────────────────────────────────
         for student in low_students:
-            pct = student.attendance_percentage
+            # Compute pct from annotations (no extra DB hit)
+            pct = (
+                round(student.present_count / student.total_classes * 100, 2)
+                if student.total_classes > 0 else 0
+            )
             name = student.name
-            log.info(f"Student: {name} ({pct}%)")
+            logger.info("Alerting: %s (%s%%)", name, pct)
 
             try:
                 body = config.alert_email_body.format(
                     student_name=name, attendance_percentage=pct, threshold=threshold)
             except Exception:
                 body = (f"Dear Parent/Guardian,\n\n{name} has {pct}% attendance "
-                        f"(below {threshold}% threshold). Contact administration.\n\nRegards,\nUniversity")
+                        f"(below {threshold}%). Please contact administration.\n\nRegards,\nUniversity")
 
             if smtp_server:
                 try:
@@ -457,10 +533,10 @@ def run_alert_bot(request):
                     msg.set_content(body)
                     smtp_server.send_message(msg)
                     email_sent += 1
-                    log.info(f"  Email sent -> {student.parent_email}")
+                    logger.info("  ✉ Email sent → %s", student.parent_email)
                 except Exception as e:
-                    log.error(f"  Email failed -> {student.parent_email}: {e}")
-                    email_errors.append(f"Email to {student.parent_email}: {str(e)}")
+                    logger.error("  ✉ Email FAILED → %s: %s", student.parent_email, e)
+                    email_errors.append(f"Email to {student.parent_email}: {e}")
 
             if twilio_client and student.parent_phone:
                 try:
@@ -471,15 +547,14 @@ def run_alert_bot(request):
                         sms_body = config.sms_alert_body.format(
                             student_name=name, attendance_percentage=pct, threshold=threshold)
                     except Exception:
-                        sms_body = f"URGENT: {name} has {pct}% attendance (below {threshold}%). Contact administration."
-
+                        sms_body = f"URGENT: {name} has {pct}% attendance (below {threshold}%). Contact admin."
                     twilio_client.messages.create(
                         body=sms_body, from_=config.twilio_from_number, to=phone)
                     sms_sent += 1
-                    log.info(f"  SMS sent -> {phone}")
+                    logger.info("  📱 SMS sent → %s", phone)
                 except Exception as e:
-                    log.error(f"  SMS failed -> {student.parent_phone}: {e}")
-                    sms_errors.append(f"SMS to {student.parent_phone}: {str(e)}")
+                    logger.error("  📱 SMS FAILED → %s: %s", student.parent_phone, e)
+                    sms_errors.append(f"SMS to {student.parent_phone}: {e}")
 
         if smtp_server:
             try:
@@ -489,23 +564,23 @@ def run_alert_bot(request):
 
         config.last_run_at = timezone.now()
         config.save()
-        log.info(f"Done: emails={email_sent}, sms={sms_sent}, email_errors={email_errors}, sms_errors={sms_errors}")
+        logger.info("Done: emails=%d, sms=%d", email_sent, sms_sent)
 
-        summary = (f"Scanned {len(all_students)} students — {len(low_students)} below {threshold}%. "
-                   f"{email_sent} email(s) sent.")
+        summary = (f"📊 Scanned {len(all_students)} students — "
+                   f"{len(low_students)} below {threshold}%. "
+                   f"📧 {email_sent} email(s) sent.")
         if config.sms_alerts_enabled:
-            summary += f" {sms_sent} SMS sent."
+            summary += f" 📱 {sms_sent} SMS sent."
 
         if email_errors or sms_errors:
             all_errors = email_errors + sms_errors
-            messages.warning(request, f"{summary} | Errors: {' | '.join(all_errors[:3])}")
+            messages.warning(request, f"{summary} | ⚠️ Errors: {' | '.join(all_errors[:3])}")
         else:
-            messages.success(request, f"SUCCESS: {summary}")
+            messages.success(request, f"✅ {summary}")
 
     except Exception as e:
         tb = traceback.format_exc()
-        log.critical(f"UNCAUGHT EXCEPTION:\n{tb}")
-        messages.error(request, f"Error: {str(e)}")
+        logger.critical("UNCAUGHT EXCEPTION:\n%s", tb)
+        messages.error(request, f"❌ Error: {e}")
 
     return redirect('/faculty/dashboard/?tab=alerts')
-

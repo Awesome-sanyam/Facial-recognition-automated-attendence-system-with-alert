@@ -53,37 +53,45 @@ while True:
     face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
 
     for face_encoding, face_location in zip(face_encodings, face_locations):
-        matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
-        enrollment = "Unknown"
+        # FIX: Use face_distance (continuous score) instead of compare_faces (binary).
+        # This is consistent with face_login.py and more accurate/configurable.
+        TOLERANCE = 0.6
+        label = "Unknown"
+        face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
 
-        if True in matches:
-            first_match_index = matches.index(True)
-            enrollment = known_face_enrollments[first_match_index]
+        if len(face_distances) > 0:
+            best_idx = face_distances.argmin()
+            best_dist = face_distances[best_idx]
 
-            # --- Log Attendance in Django ---
-            try:
-                student = Student.objects.get(enrollment_number=enrollment)
-                today = datetime.today().date()
-                
-                # Check if already marked present today
-                record, created = AttendanceRecord.objects.get_or_create(
-                    student=student,
-                    date=today,
-                    defaults={'status': 'Present'}
-                )
-                
-                if created:
-                    print(f"Success: Logged attendance for {student.name}")
-                    
-            except Student.DoesNotExist:
-                print(f"Error: {enrollment} recognized, but not found in Database.")
+            if best_dist < TOLERANCE:
+                enrollment = known_face_enrollments[best_idx]
+                confidence = round((1 - best_dist) * 100, 1)
+                label = f"{enrollment} ({confidence}%)"
+
+                # --- Log Attendance in Django ---
+                try:
+                    student = Student.objects.get(enrollment_number=enrollment)
+                    today = datetime.today().date()
+
+                    record, created = AttendanceRecord.objects.get_or_create(
+                        student=student,
+                        date=today,
+                        defaults={'status': 'Present'}
+                    )
+                    status = "✅ MARKED" if created else "⏭ ALREADY MARKED"
+                    print(f"{status}: {student.name} ({confidence}% match)")
+
+                except Student.DoesNotExist:
+                    print(f"⚠ Matched {enrollment} but not found in DB.")
 
         # Scale back up face locations to draw the box on the original frame
         top, right, bottom, left = [coord * 2 for coord in face_location]
-        
+
         # Draw a box and label around the face
-        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-        cv2.putText(frame, enrollment, (left + 6, bottom - 6), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255), 1)
+        color = (0, 255, 0) if label != "Unknown" else (0, 0, 255)
+        cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
+        cv2.putText(frame, label, (left + 6, bottom - 6), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255), 1)
+
 
     cv2.imshow('Classroom Attendance Scanner', frame)
 

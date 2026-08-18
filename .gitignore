@@ -13,6 +13,10 @@ build/
 .env
 .env.*
 !.env.example
+Passwords.txt
+passwords.txt
+*.txt.bak
+/tmp/
 
 # ─── Django ───────────────────────────────────────
 db.sqlite3
@@ -28,7 +32,9 @@ rpa_bot/__pycache__/
 
 # ─── Face Recognition data ────────────────────────
 face_recognition/face_data/
+face_recognition/known_faces/
 face_recognition/__pycache__/
 
 # ─── macOS ────────────────────────────────────────
 .DS_Store
+**/.DS_Store
