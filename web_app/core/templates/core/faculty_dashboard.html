@@ -231,13 +231,18 @@
                     </thead>
                     <tbody>
                         {% for s in students %}
-                        <tr>
+                        <tr class="student-row"
+                            data-student-name="{{ s.name }}"
+                            data-enrollment="{{ s.enrollment_number }}"
+                            data-parent-email="{{ s.parent_email }}"
+                            data-parent-phone="{{ s.parent_phone }}"
+                            data-attendance="{{ s.attendance_percentage }}">
                             <td><div class="td-name">{{ s.name }}</div><div class="td-sub">{{ s.email|default:"—" }}</div></td>
-                            <td style="font-size:.78rem;color:var(--text-muted)">{{ s.enrollment_number }}</td>
+                            <td style="font-size:.78rem;color:var(--text-muted)" class="col-enrollment">{{ s.enrollment_number }}</td>
                             <td>{{ s.department|default:"—" }}</td>
                             <td>Year {{ s.year }}</td>
-                            <td style="font-size:.78rem">{{ s.parent_email }}</td>
-                            <td><span class="badge {% if s.attendance_percentage < alert_config.alert_threshold %}b-red{% else %}b-green{% endif %}">{{ s.attendance_percentage }}%</span></td>
+                            <td style="font-size:.78rem" class="col-parent-email">{{ s.parent_email }}</td>
+                            <td><span class="badge student-attendance {% if s.attendance_percentage < alert_config.alert_threshold %}b-red{% else %}b-green{% endif %}">{{ s.attendance_percentage }}%</span></td>
                             <td>
                                 <form method="POST" action="{% url 'delete_student' s.id %}" onsubmit="return confirm('Delete {{ s.name }} and ALL their records? This cannot be undone.');" style="display:inline;">
                                     {% csrf_token %}
@@ -270,8 +275,8 @@
                             <td>{{ leave.date_requested }}</td>
                             <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ leave.reason }}</td>
                             <td>
-                                <a href="{% url 'manage_leave' leave.id 'approve' %}" class="a-btn approve">✓ Approve</a>
-                                <a href="{% url 'manage_leave' leave.id 'reject' %}" class="a-btn reject">✕ Reject</a>
+                                <form method="POST" action="{% url 'manage_leave' leave.id 'approve' %}" style="display:inline;">{% csrf_token %}<button type="submit" class="a-btn approve">✓ Approve</button></form>
+                                <form method="POST" action="{% url 'manage_leave' leave.id 'reject' %}" style="display:inline;">{% csrf_token %}<button type="submit" class="a-btn reject">✕ Reject</button></form>
                             </td>
                         </tr>
                         {% empty %}
