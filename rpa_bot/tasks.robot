@@ -9,8 +9,8 @@ Library           String
 Library           Collections
 
 # ── Global Selenium Speed ─────────────────────────────────────────────────────
-# Set to 1.0s so every action is clearly visible. Change to 0.5 to go faster.
-Suite Setup       Set Selenium Speed    1.0s
+# Set to 0.1s for a very fast (but still visual) pace.
+Suite Setup       Set Selenium Speed    0.1s
 
 *** Variables ***
 # ── Faculty Web Portal (not Django Admin) ─────────────────────────────────────
@@ -68,7 +68,7 @@ Highlight Element
     ...    arguments[0].style.outlineOffset = '2px';
     ...    arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});
     ...    ARGUMENTS    ${element}
-    Sleep    0.6s
+    Sleep    0.3s
     Execute Javascript
     ...    arguments[0].style.outline = '';
     ...    arguments[0].style.outlineOffset = '';
@@ -76,75 +76,75 @@ Highlight Element
 
 Open Faculty Web Portal
     [Documentation]    Launch Chrome and open the Faculty Login page.
-    Log    \n╔══════════════════════════════════════════════════════╗    console=yes
-    Log    ║  STEP 1 ▶  Opening Faculty Web Portal                ║    console=yes
-    Log    ╚══════════════════════════════════════════════════════╝    console=yes
+    Log To Console    \n╔══════════════════════════════════════════════════════╗
+    Log To Console    ║ STEP 1 ▶ Opening Faculty Web Portal ║
+    Log To Console    ╚══════════════════════════════════════════════════════╝
     Open Browser    ${LOGIN_URL}    chrome
     Maximize Browser Window
-    Sleep    1s
+    Sleep    0.5s
     Wait Until Page Contains    Faculty Login    timeout=15s
-    Log    ✅ Faculty Login page loaded: ${LOGIN_URL}    console=yes
+    Log To Console    ✅ Faculty Login page loaded: ${LOGIN_URL}
 
 Login To Faculty Portal
     [Documentation]    Fill in username + password on the faculty login form and submit.
-    Log    \n╔══════════════════════════════════════════════════════╗    console=yes
-    Log    ║  STEP 2 ▶  Logging In as Faculty                     ║    console=yes
-    Log    ╚══════════════════════════════════════════════════════╝    console=yes
+    Log To Console    \n╔══════════════════════════════════════════════════════╗
+    Log To Console    ║ STEP 2 ▶ Logging In as Faculty ║
+    Log To Console    ╚══════════════════════════════════════════════════════╝
 
     # Highlight and fill username
     Highlight Element    css:input[name="username"]
-    Log    🖊  Typing username: ${FACULTY_USER}    console=yes
+    Log To Console    🖊 Typing username: ${FACULTY_USER}
     Input Text        css:input[name="username"]    ${FACULTY_USER}
-    Sleep    0.8s
+    Sleep    0.4s
 
     # Highlight and fill password
     Highlight Element    css:input[name="password"]
-    Log    🖊  Typing password...    console=yes
+    Log To Console    🖊 Typing password...
     Input Password    css:input[name="password"]    ${FACULTY_PASS}
-    Sleep    0.8s
+    Sleep    0.4s
 
     # Highlight submit button, then click
     Highlight Element    css:button[type="submit"]
-    Log    🖱  Clicking LOGIN button    console=yes
-    Sleep    0.5s
+    Log To Console    🖱 Clicking LOGIN button
+    Sleep    0.2s
     Click Button      css:button[type="submit"]
 
     # Wait for dashboard to load
-    Log    ⏳ Waiting for dashboard to load...    console=yes
+    Log To Console    ⏳ Waiting for dashboard to load...
     Wait Until Page Contains    Student Attendance Roster    timeout=20s
-    Sleep    1s
-    Log    ✅ Logged into Faculty Portal as ${FACULTY_USER}    console=yes
+    Sleep    0.5s
+    Log To Console    ✅ Logged into Faculty Portal as ${FACULTY_USER}
 
 Navigate To Student Attendance Roster
     [Documentation]    Go to the Students tab on the faculty dashboard.
-    Log    \n╔══════════════════════════════════════════════════════╗    console=yes
-    Log    ║  STEP 3 ▶  Navigating to Student Attendance Roster   ║    console=yes
-    Log    ╚══════════════════════════════════════════════════════╝    console=yes
-    Log    🌐 Navigating to: ${DASHBOARD_URL}    console=yes
+    Log To Console    \n╔══════════════════════════════════════════════════════╗
+    Log To Console    ║ STEP 3 ▶ Navigating to Student Attendance Roster ║
+    Log To Console    ╚══════════════════════════════════════════════════════╝
+    Log To Console    🌐 Navigating to: ${DASHBOARD_URL}
     Go To    ${DASHBOARD_URL}
     Wait Until Page Contains    Student Attendance Roster    timeout=15s
-    Sleep    1.5s
-    Log    ✅ Student Attendance Roster loaded    console=yes
+    Sleep    0.8s
+    Log To Console    ✅ Student Attendance Roster loaded
 
 Authorize Email Server
     [Documentation]    Connect to Gmail SMTP using credentials from the dashboard config.
-    Log    \n╔══════════════════════════════════════════════════════╗    console=yes
-    Log    ║  STEP 4 ▶  Authorising Gmail SMTP Server             ║    console=yes
-    Log    ╚══════════════════════════════════════════════════════╝    console=yes
-    Log    📧 Connecting to Gmail SMTP as: ${GMAIL_USER}    console=yes
+    Log To Console    \n╔══════════════════════════════════════════════════════╗
+    Log To Console    ║ STEP 4 ▶ Authorising Gmail SMTP Server ║
+    Log To Console    ╚══════════════════════════════════════════════════════╝
+    Log To Console    📧 Connecting to Gmail SMTP as: ${GMAIL_USER}
     Authorize    account=${GMAIL_USER}    password=${GMAIL_PASS}
-    Sleep    0.5s
-    Log    ✅ Gmail SMTP authorised    console=yes
+    Sleep    0.2s
+    Log To Console    ✅ Gmail SMTP authorised
 
 Authorize SMS Server
     [Documentation]    Initialise Twilio client using credentials from the dashboard config.
-    Log    \n╔══════════════════════════════════════════════════════╗    console=yes
-    Log    ║  STEP 5 ▶  Authorising Twilio SMS Client             ║    console=yes
-    Log    ╚══════════════════════════════════════════════════════╝    console=yes
-    Log    📱 Initialising Twilio (SMS_ENABLED=${SMS_ENABLED})    console=yes
+    Log To Console    \n╔══════════════════════════════════════════════════════╗
+    Log To Console    ║ STEP 5 ▶ Authorising Twilio SMS Client ║
+    Log To Console    ╚══════════════════════════════════════════════════════╝
+    Log To Console    📱 Initialising Twilio (SMS_ENABLED=${SMS_ENABLED})
     Authorize SMS    account_sid=${TWILIO_SID}    auth_token=${TWILIO_TOKEN}    from_number=${TWILIO_FROM}
-    Sleep    0.5s
-    Log    ✅ Twilio SMS client authorised    console=yes
+    Sleep    0.2s
+    Log To Console    ✅ Twilio SMS client authorised
 
 Audit And Alert Low Attendance Students
     [Documentation]
@@ -152,23 +152,23 @@ Audit And Alert Low Attendance Students
     ...    Each <tr class="student-row"> has data attributes:
     ...       data-student-name, data-parent-email, data-parent-phone, data-attendance
     ...    For each student below the threshold, sends Email + SMS.
-    Log    \n╔══════════════════════════════════════════════════════╗    console=yes
-    Log    ║  STEP 6 ▶  Auditing Student Attendance Records       ║    console=yes
-    Log    ╚══════════════════════════════════════════════════════╝    console=yes
+    Log To Console    \n╔══════════════════════════════════════════════════════╗
+    Log To Console    ║ STEP 6 ▶ Auditing Student Attendance Records ║
+    Log To Console    ╚══════════════════════════════════════════════════════╝
 
     # Count how many student rows the dashboard rendered
     ${row_count}=    Get Element Count    css:tr.student-row
-    Log    📋 Found ${row_count} student(s) in the Attendance Roster    console=yes
-    Log    📊 Alert threshold: ${THRESHOLD}%    console=yes
-    Sleep    1s
+    Log To Console    📋 Found ${row_count} student(s) in the Attendance Roster
+    Log To Console    📊 Alert threshold: ${THRESHOLD}%
+    Sleep    0.5s
 
     FOR    ${i}    IN RANGE    1    ${row_count} + 1
-        Log    \n──────────────────────────────────────────────────────    console=yes
-        Log    🔍 Processing student ${i} of ${row_count}...    console=yes
+     Log To Console    \n──────────────────────────────────────────────────────
+     Log To Console    🔍 Processing student ${i} of ${row_count}...
 
         # Highlight the current row so it's visible on screen
         Highlight Element    xpath:(//tr[contains(@class,'student-row')])[${i}]
-        Sleep    0.5s
+        Sleep    0.2s
 
         # Read from data-* attributes — reliable regardless of column order
         ${name}=     Get Element Attribute
@@ -185,34 +185,34 @@ Audit And Alert Low Attendance Students
         ...    data-attendance
 
         ${att_val}=  Convert To Number    ${att_str}
-        Log    👤 Student : ${name}    console=yes
-        Log    📧 Email   : ${email}    console=yes
-        Log    📱 Phone   : ${phone}    console=yes
-        Log    📈 Attendance: ${att_val}% (threshold: ${THRESHOLD}%)    console=yes
-        Sleep    0.8s
+     Log To Console    👤 Student : ${name}
+     Log To Console    📧 Email : ${email}
+     Log To Console    📱 Phone : ${phone}
+     Log To Console    📈 Attendance: ${att_val}% (threshold: ${THRESHOLD}%)
+        Sleep    0.4s
 
         IF    ${att_val} < ${THRESHOLD}
-            Log    ⚠️  LOW ATTENDANCE — sending alert!    console=yes
+     Log To Console    ⚠️ LOW ATTENDANCE — sending alert!
             Log    LOW ATTENDANCE: ${name} | ${att_val}% (below ${THRESHOLD}%) | Email: ${email} | Phone: ${phone}    INFO
             Send Warning Email    ${email}    ${name}    ${att_val}
-            Sleep    0.5s
+            Sleep    0.2s
             IF    '${SMS_ENABLED}' == 'True'
                 Send Warning SMS    ${phone}    ${name}    ${att_val}
-                Sleep    0.5s
+                Sleep    0.2s
             END
         ELSE
-            Log    ✅ COMPLIANT — ${name} at ${att_val}% — no action needed    console=yes
+     Log To Console    ✅ COMPLIANT — ${name} at ${att_val}% — no action needed
             Log    COMPLIANT: ${name} | ${att_val}% | No action needed    INFO
         END
-        Sleep    0.5s
+        Sleep    0.2s
     END
-    Log    \n╔══════════════════════════════════════════════════════╗    console=yes
-    Log    ║  STEP 6 COMPLETE ▶  All students processed           ║    console=yes
-    Log    ╚══════════════════════════════════════════════════════╝    console=yes
+    Log To Console    \n╔══════════════════════════════════════════════════════╗
+    Log To Console    ║ STEP 6 COMPLETE ▶ All students processed ║
+    Log To Console    ╚══════════════════════════════════════════════════════╝
 
 Send Warning Email
     [Arguments]    ${recipient_email}    ${student_name}    ${attendance_pct}
-    Log    ✉  Preparing email to: ${recipient_email}    console=yes
+    Log To Console    ✉ Preparing email to: ${recipient_email}
     ${subject}=    Set Variable
     ...    URGENT: Low Attendance Warning — ${student_name}
     ${body}=       Set Variable
@@ -222,7 +222,7 @@ Send Warning Email
     ...    recipients=${recipient_email}
     ...    subject=${subject}
     ...    body=${body}
-    Log    ✅ Email dispatched → ${recipient_email}    console=yes
+    Log To Console    ✅ Email dispatched → ${recipient_email}
 
 Send Warning SMS
     [Arguments]    ${recipient_phone}    ${student_name}    ${attendance_pct}
