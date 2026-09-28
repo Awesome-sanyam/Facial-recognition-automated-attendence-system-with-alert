@@ -2,7 +2,11 @@ from django.contrib import admin
 from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.utils.html import format_html
-from .models import FacultyProfile, AlertConfiguration, Student, AttendanceRecord, LeaveApplication
+from .models import (
+    FacultyProfile, AlertConfiguration,
+    Student, AttendanceRecord, LeaveApplication,
+    HolidayCalendar, RPABotLog,
+)
 
 
 # ─────────────────────────────────────────────
@@ -105,3 +109,66 @@ class LeaveAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     readonly_fields = ('reviewed_at',)
     list_per_page = 25
+
+
+# ─────────────────────────────────────────────
+#  NEW: HOLIDAY CALENDAR ADMIN
+# ─────────────────────────────────────────────
+
+@admin.register(HolidayCalendar)
+class HolidayCalendarAdmin(admin.ModelAdmin):
+    """
+    Admin view for the Holiday Calendar.
+    Faculty can manually add holidays here, or the
+    Holiday Sync Bot (Bot 3) auto-populates them from academic_calendar.xlsx.
+    """
+    list_display  = ('date', 'name', 'holiday_type', 'synced_by_bot', 'synced_at')
+    list_filter   = ('holiday_type', 'synced_by_bot')
+    search_fields = ('name',)
+    ordering      = ('date',)
+    readonly_fields = ('synced_at',)
+    list_per_page = 50
+
+    def get_readonly_fields(self, request, obj=None):
+        # Dates synced by bot should not be edited manually
+        if obj and obj.synced_by_bot:
+            return self.readonly_fields + ('date', 'synced_by_bot')
+        return self.readonly_fields
+
+
+# ─────────────────────────────────────────────
+#  NEW: RPA BOT LOG ADMIN
+# ─────────────────────────────────────────────
+
+@admin.register(RPABotLog)
+class RPABotLogAdmin(admin.ModelAdmin):
+    """
+    Read-only audit trail for all RPA bot executions.
+    Displays coloured status badges and links back to triggering user.
+    """
+    list_display  = ('get_bot_name_display', 'status_badge', 'records_processed',
+                     'started_at', 'finished_at', 'triggered_by')
+    list_filter   = ('bot_name', 'status', 'started_at')
+    search_fields = ('summary', 'errors')
+    readonly_fields = ('bot_name', 'status', 'started_at', 'finished_at',
+                       'summary', 'records_processed', 'errors', 'triggered_by')
+    ordering      = ('-started_at',)
+    list_per_page = 50
+
+    def status_badge(self, obj):
+        color_map = {
+            'success': '#16a34a',
+            'partial': '#d97706',
+            'failed':  '#dc2626',
+            'running': '#2563eb',
+        }
+        color = color_map.get(obj.status, '#6b7280')
+        return format_html(
+            '<span style="color:{};font-weight:700;text-transform:uppercase">{}</span>',
+            color, obj.status
+        )
+    status_badge.short_description = 'Status'
+
+    def has_add_permission(self, request):
+        # Logs are written only by bots — not manually
+        return False

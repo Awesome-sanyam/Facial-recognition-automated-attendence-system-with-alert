@@ -1,0 +1,297 @@
+{% comment %}
+  Template: _rpa_bots_tab.html
+  
+  This partial template renders the "RPA Bots" tab on the Faculty Dashboard.
+  It follows the Enterprise Minimalist (Bootstrap 5) design system:
+    - bg-light canvas, card shadow-sm, table-hover, border-start categorization
+    - All controls are POST forms with CSRF tokens for security
+    
+  INCLUDED IN: faculty_dashboard.html via {% include %}
+  CONTEXT VARIABLES REQUIRED:
+    - bot_logs      → QuerySet of RPABotLog (recent 20 entries)
+    - alert_config  → AlertConfiguration (to show dean_email field)
+{% endcomment %}
+
+<div class="row g-4">
+
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  {# SECTION HEADER                                                             #}
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  <div class="col-12">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <div>
+        <h4 class="fw-bold text-dark mb-0">⚙️ Enterprise RPA Automation Suite</h4>
+        <p class="text-muted small mb-0">
+          5 Robot Framework bots — each triggered manually or schedulable via cron.
+          All runs are logged in the audit table below.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  {# BOT 1 — AUTO-LEAVE PROCESSOR                                               #}
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  <div class="col-md-6">
+    <div class="card shadow-sm border-0 border-start border-success border-4 mb-4">
+      <div class="card-body p-4">
+        <h5 class="fw-bold text-success mb-1">🤖 Bot 1 — Auto-Leave Processor</h5>
+        <p class="text-muted small mb-3">
+          Reads all <strong>Pending</strong> leave applications. Auto-approves 1-day leaves
+          for students with <strong>&gt;80%</strong> attendance. Others remain Pending for HOD review.
+          Updates <code>AttendanceRecord</code> to <em>Excused</em> on approval.
+        </p>
+        <ul class="list-group list-group-flush mb-3 small">
+          <li class="list-group-item px-0 py-1 border-0 text-muted">
+            📋 <strong>Mechanism:</strong> RPA.Database (direct SQLite, no browser)
+          </li>
+          <li class="list-group-item px-0 py-1 border-0 text-muted">
+            ✅ <strong>Policy:</strong> &gt;80% attendance → Auto-Approve
+          </li>
+          <li class="list-group-item px-0 py-1 border-0 text-muted">
+            ⏸ <strong>Policy:</strong> ≤80% attendance → Keep Pending
+          </li>
+        </ul>
+        <form method="POST" action="{% url 'run_leave_processor_bot' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-success w-100">
+            ▶ Run Auto-Leave Processor
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  {# BOT 2 — MONTHLY HOD PDF REPORT                                             #}
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  <div class="col-md-6">
+    <div class="card shadow-sm border-0 border-start border-primary border-4 mb-4">
+      <div class="card-body p-4">
+        <h5 class="fw-bold text-primary mb-1">📄 Bot 2 — Monthly HOD PDF Report</h5>
+        <p class="text-muted small mb-3">
+          Generates a professionally formatted PDF of all students below
+          <strong>{{ alert_config.hod_report_threshold }}%</strong> attendance
+          and emails it directly to the Dean's address.
+          Built with <em>ReportLab</em> — no browser required.
+        </p>
+        <ul class="list-group list-group-flush mb-3 small">
+          <li class="list-group-item px-0 py-1 border-0 text-muted">
+            📧 <strong>Dean Email:</strong>
+            {% if alert_config.dean_email %}
+              <code>{{ alert_config.dean_email }}</code>
+            {% else %}
+              <span class="text-danger">Not configured — set in Alert Config tab</span>
+            {% endif %}
+          </li>
+          <li class="list-group-item px-0 py-1 border-0 text-muted">
+            📊 <strong>Threshold:</strong> &lt;{{ alert_config.hod_report_threshold }}%
+          </li>
+        </ul>
+        <form method="POST" action="{% url 'run_hod_report_bot' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary w-100"
+            {% if not alert_config.dean_email %}disabled title="Configure Dean email first"{% endif %}>
+            ▶ Generate & Email HOD Report
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  {# BOT 3 — HOLIDAY SYNC                                                       #}
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  <div class="col-md-6">
+    <div class="card shadow-sm border-0 border-start border-warning border-4 mb-4">
+      <div class="card-body p-4">
+        <h5 class="fw-bold text-warning mb-1">📅 Bot 3 — Holiday Sync</h5>
+        <p class="text-muted small mb-3">
+          Reads <code>academic_calendar.xlsx</code> from the project root and syncs
+          all holiday dates into the <em>HolidayCalendar</em> database table.
+          The attendance system will block absence marking on synced holidays.
+        </p>
+        <ul class="list-group list-group-flush mb-3 small">
+          <li class="list-group-item px-0 py-1 border-0 text-muted">
+            📁 <strong>File:</strong> <code>academic_calendar.xlsx</code> (project root)
+          </li>
+          <li class="list-group-item px-0 py-1 border-0 text-muted">
+            📋 <strong>Columns:</strong> Date | Holiday Name | Type
+          </li>
+        </ul>
+        <form method="POST" action="{% url 'run_holiday_sync_bot' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-warning w-100">
+            ▶ Sync Academic Calendar
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  {# BOT 4 — PTM ESCALATION                                                     #}
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  <div class="col-md-6">
+    <div class="card shadow-sm border-0 border-start border-danger border-4 mb-4">
+      <div class="card-body p-4">
+        <h5 class="fw-bold text-danger mb-1">🚨 Bot 4 — PTM Escalation</h5>
+        <p class="text-muted small mb-3">
+          Finds all students with attendance <strong>&lt;50%</strong> and sends
+          a formal <em>Parent-Teacher Meeting</em> invitation email to each student's
+          registered parent email address.
+        </p>
+        <ul class="list-group list-group-flush mb-3 small">
+          <li class="list-group-item px-0 py-1 border-0 text-muted">
+            🎯 <strong>Threshold:</strong> &lt;50% → Formal PTM invite
+          </li>
+          <li class="list-group-item px-0 py-1 border-0 text-muted">
+            📧 <strong>Email:</strong> Gmail SMTP (configured in Alert Config)
+          </li>
+        </ul>
+        <form method="POST" action="{% url 'run_ptm_escalation_bot' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger w-100">
+            ▶ Send PTM Escalation Emails
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  {# BOT 5 — NIGHTLY DB BACKUP                                                  #}
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  <div class="col-md-6">
+    <div class="card shadow-sm border-0 border-start border-secondary border-4 mb-4">
+      <div class="card-body p-4">
+        <h5 class="fw-bold text-secondary mb-1">💾 Bot 5 — Nightly DB Backup</h5>
+        <p class="text-muted small mb-3">
+          Creates a timestamped database backup (<em>SQLite binary copy</em> or
+          <em>pg_dump</em> for PostgreSQL). Emails an IT health report with DB
+          statistics, backup file path, and system status.
+        </p>
+        <ul class="list-group list-group-flush mb-3 small">
+          <li class="list-group-item px-0 py-1 border-0 text-muted">
+            💾 <strong>Output:</strong> <code>backups/attendance_db_backup_&lt;timestamp&gt;.sqlite3</code>
+          </li>
+          <li class="list-group-item px-0 py-1 border-0 text-muted">
+            📧 <strong>Report sent to:</strong> IT Admin / Dean email
+          </li>
+        </ul>
+        <form method="POST" action="{% url 'run_db_backup_bot' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-secondary w-100">
+            ▶ Run Nightly DB Backup
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  {# DEAN EMAIL QUICK-CONFIG CARD                                                #}
+  {# ══════════════════════════════════════════════════════════════════════════ #}
+  <div class="col-md-6">
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+        <h6 class="fw-bold text-dark">🔧 Bot Configuration</h6>
+        <p class="text-muted small">Set the Dean email required for Bot 2 (HOD Report) and Bot 5 (IT Backup Report).</p>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{% url 'save_alert_config' %}">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label fw-bold" for="id_dean_email">Dean / HOD Email</label>
+            <input type="email" name="dean_email" id="id_dean_email"
+                   class="form-control"
+                   placeholder="dean@university.edu"
+                   value="{{ alert_config.dean_email }}">
+            <div class="form-text text-muted">PDF reports (Bot 2) and IT health reports (Bot 5) are sent here.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold" for="id_hod_threshold">HOD Report Threshold (%)</label>
+            <input type="number" name="hod_report_threshold" id="id_hod_threshold"
+                   class="form-control"
+                   min="0" max="100"
+                   value="{{ alert_config.hod_report_threshold }}">
+            <div class="form-text text-muted">Students below this % are included in the monthly HOD PDF report.</div>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            💾 Save Bot Configuration
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>{# end row #}
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# BOT AUDIT LOG TABLE                                                         #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div class="row mt-2">
+  <div class="col-12">
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-white border-bottom pt-4 pb-3">
+        <h6 class="fw-bold text-dark mb-0">📋 Bot Execution Audit Log</h6>
+        <p class="text-muted small mb-0">Real-time log of all RPA bot runs. Most recent runs shown first.</p>
+      </div>
+      <div class="card-body p-0">
+        {% if bot_logs %}
+        <table class="table table-hover table-borderless align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="text-secondary small px-4">Bot</th>
+              <th class="text-secondary small">Status</th>
+              <th class="text-secondary small">Records</th>
+              <th class="text-secondary small">Started</th>
+              <th class="text-secondary small">Finished</th>
+              <th class="text-secondary small">Triggered By</th>
+              <th class="text-secondary small">Summary</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in bot_logs %}
+            <tr>
+              <td class="px-4 small fw-bold">{{ log.get_bot_name_display }}</td>
+              <td>
+                {% if log.status == 'success' %}
+                  <span class="badge bg-success">✓ Success</span>
+                {% elif log.status == 'partial' %}
+                  <span class="badge bg-warning text-dark">⚠ Partial</span>
+                {% elif log.status == 'failed' %}
+                  <span class="badge bg-danger">✗ Failed</span>
+                {% else %}
+                  <span class="badge bg-primary">⟳ Running</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">{{ log.records_processed }}</td>
+              <td class="small text-muted">{{ log.started_at|date:"d M H:i" }}</td>
+              <td class="small text-muted">
+                {% if log.finished_at %}{{ log.finished_at|date:"d M H:i" }}{% else %}—{% endif %}
+              </td>
+              <td class="small text-muted">
+                {% if log.triggered_by %}{{ log.triggered_by.get_full_name|default:log.triggered_by.username }}{% else %}Bot{% endif %}
+              </td>
+              <td class="small text-muted" style="max-width:250px">
+                <span title="{{ log.summary }}">
+                  {{ log.summary|truncatechars:80 }}
+                </span>
+                {% if log.errors %}
+                  <br><span class="text-danger" title="{{ log.errors }}">⚠ {{ log.errors|truncatechars:60 }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="p-4 text-center text-muted">
+          <p class="mb-0">No bot runs yet. Click a bot button above to get started.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

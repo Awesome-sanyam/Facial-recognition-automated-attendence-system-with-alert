@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import rpa_runner
 
 urlpatterns = [
     # ── Landing ──────────────────────────────────────────
@@ -30,7 +31,23 @@ urlpatterns = [
     # ── Leave Management ──────────────────────────────────
     path('faculty/leave/<int:leave_id>/<str:action>/', views.manage_leave, name='manage_leave'),
 
-    # ── Alert Config + RPA ────────────────────────────────
+    # ── Alert Config + Legacy RPA Bot ─────────────────────
     path('faculty/alerts/save/', views.save_alert_config, name='save_alert_config'),
     path('faculty/alerts/run/', views.run_alert_bot, name='run_alert_bot'),
+
+    # ── NEW: 5 Enterprise RPA Bots ───────────────────────
+    # Bot 1 — Auto-Leave Processor
+    path('faculty/bots/leave-processor/', rpa_runner.run_leave_processor_bot, name='run_leave_processor_bot'),
+
+    # Bot 2 — Monthly HOD PDF Report
+    path('faculty/bots/hod-report/', rpa_runner.run_hod_report_bot, name='run_hod_report_bot'),
+
+    # Bot 3 — Holiday Sync (reads academic_calendar.xlsx)
+    path('faculty/bots/holiday-sync/', rpa_runner.run_holiday_sync_bot, name='run_holiday_sync_bot'),
+
+    # Bot 4 — PTM Escalation (< 50% attendance parents)
+    path('faculty/bots/ptm-escalation/', rpa_runner.run_ptm_escalation_bot, name='run_ptm_escalation_bot'),
+
+    # Bot 5 — Nightly DB Backup + IT Health Report
+    path('faculty/bots/db-backup/', rpa_runner.run_db_backup_bot, name='run_db_backup_bot'),
 ]

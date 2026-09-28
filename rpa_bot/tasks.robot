@@ -25,15 +25,21 @@ ${FACULTY_PASS}   admin
 # ── Alert Threshold ───────────────────────────────────────────────────────────
 ${THRESHOLD}      ${75.0}
 
-# ── Gmail credentials ─ injected by save_alert_config via Faculty Dashboard ───
+# ── Browser Mode ──────────────────────────────────────────────────────────────
+${HEADLESS}       False
+
+# ── Credentials (Injected dynamically via CLI --variable flags) ───────────────
 ${GMAIL_USER}     CONFIGURE_VIA_FACULTY_DASHBOARD
 ${GMAIL_PASS}     CONFIGURE_VIA_FACULTY_DASHBOARD
-
-# ── Twilio credentials ─ injected by save_alert_config via Faculty Dashboard ──
 ${TWILIO_SID}     CONFIGURE_VIA_FACULTY_DASHBOARD
-${TWILIO_TOKEN}     CONFIGURE_VIA_FACULTY_DASHBOARD
-${TWILIO_FROM}     CONFIGURE_VIA_FACULTY_DASHBOARD
-${SMS_ENABLED}     False
+${TWILIO_TOKEN}   CONFIGURE_VIA_FACULTY_DASHBOARD
+${TWILIO_FROM}    CONFIGURE_VIA_FACULTY_DASHBOARD
+${SMS_ENABLED}    False
+
+# ── Templates (Injected dynamically or default fallback) ─────────────────────
+${EMAIL_SUBJECT}  URGENT: Low Attendance Warning — {student_name}
+${EMAIL_BODY}     Dear Parent/Guardian,\n\nThis is an automated alert from the University Attendance System.\n\nStudent: {student_name}\nCurrent Attendance: {attendance_percentage}%\nRequired Minimum: {threshold}%\n\nThe attendance has dropped below the mandatory threshold.\nPlease submit a leave application or contact the administration immediately.\n\nThis message was sent automatically by the Faculty RPA Bot.\n\nRegards,\nUniversity Attendance System
+${SMS_BODY}       URGENT: {student_name} has {attendance_percentage}% attendance (below {threshold}% threshold). Contact administration immediately.
 
 
 *** Tasks ***
@@ -79,8 +85,17 @@ Open Faculty Web Portal
     Log To Console    \n╔══════════════════════════════════════════════════════╗
     Log To Console    ║ STEP 1 ▶ Opening Faculty Web Portal ║
     Log To Console    ╚══════════════════════════════════════════════════════╝
-    Open Browser    ${LOGIN_URL}    chrome
-    Maximize Browser Window
+    ${options}=    Evaluate    sys.modules['selenium.webdriver'].ChromeOptions()    sys
+    IF    '${HEADLESS}' == 'True'
+        Call Method    ${options}    add_argument    --headless\=new
+        Call Method    ${options}    add_argument    --disable-gpu
+        Call Method    ${options}    add_argument    --no-sandbox
+        Call Method    ${options}    add_argument    --window-size\=1920,1080
+    END
+    Open Browser    ${LOGIN_URL}    chrome    options=${options}
+    IF    '${HEADLESS}' != 'True'
+        Maximize Browser Window
+    END
     Sleep    0.5s
     Wait Until Page Contains    Faculty Login    timeout=15s
     Log To Console    ✅ Faculty Login page loaded: ${LOGIN_URL}
@@ -127,7 +142,7 @@ Navigate To Student Attendance Roster
     Log To Console    ✅ Student Attendance Roster loaded
 
 Authorize Email Server
-    [Documentation]    Connect to Gmail SMTP using credentials from the dashboard config.
+    [Documentation]    Connect to Gmail SMTP using credentials from CLI variables.
     Log To Console    \n╔══════════════════════════════════════════════════════╗
     Log To Console    ║ STEP 4 ▶ Authorising Gmail SMTP Server ║
     Log To Console    ╚══════════════════════════════════════════════════════╝
@@ -137,7 +152,7 @@ Authorize Email Server
     Log To Console    ✅ Gmail SMTP authorised
 
 Authorize SMS Server
-    [Documentation]    Initialise Twilio client using credentials from the dashboard config.
+    [Documentation]    Initialise Twilio client using credentials from CLI variables.
     Log To Console    \n╔══════════════════════════════════════════════════════╗
     Log To Console    ║ STEP 5 ▶ Authorising Twilio SMS Client ║
     Log To Console    ╚══════════════════════════════════════════════════════╝
@@ -213,33 +228,38 @@ Audit And Alert Low Attendance Students
 Send Warning Email
     [Arguments]    ${recipient_email}    ${student_name}    ${attendance_pct}
     Log To Console    ✉ Preparing email to: ${recipient_email}
-    ${subject}=    Set Variable
-    ...    URGENT: Low Attendance Warning — ${student_name}
-    ${body}=       Set Variable
-    ...    Dear Parent/Guardian,\n\nThis is an automated alert from the University Attendance System.\n\nStudent: ${student_name}\nCurrent Attendance: ${attendance_pct}%\nRequired Minimum: ${THRESHOLD}%\n\nThe attendance has dropped below the mandatory threshold.\nPlease submit a leave application or contact the administration immediately.\n\nThis message was sent automatically by the Faculty RPA Bot.\n\nRegards,\nUniversity Attendance System
-    Send Message
-    ...    sender=${GMAIL_USER}
-    ...    recipients=${recipient_email}
-    ...    subject=${subject}
-    ...    body=${body}
-    Log To Console    ✅ Email dispatched → ${recipient_email}
+    ${subject}=    Replace String    ${EMAIL_SUBJECT}    {student_name}    ${student_name}
+    ${body}=       Replace String    ${EMAIL_BODY}       {student_name}    ${student_name}
+    ${body}=       Replace String    ${body}             {attendance_percentage}    ${attendance_pct}
+    ${body}=       Replace String    ${body}             {threshold}       ${THRESHOLD}
+    TRY
+        Send Message
+        ...    sender=${GMAIL_USER}
+        ...    recipients=${recipient_email}
+        ...    subject=${subject}
+        ...    body=${body}
+        Log To Console    ✅ Email dispatched → ${recipient_email}
+    EXCEPT    AS    ${err}
+        Log To Console    ⚠️ Email to ${recipient_email} failed: ${err}
+        Log    Email to ${recipient_email} failed: ${err}    WARN
+    END
 
 Send Warning SMS
     [Arguments]    ${recipient_phone}    ${student_name}    ${attendance_pct}
-    ${body}=    Set Variable
-    ...    URGENT: ${student_name} has ${attendance_pct}% attendance (below ${THRESHOLD}% threshold). Contact administration immediately.
+    ${body}=    Replace String    ${SMS_BODY}         {student_name}    ${student_name}
+    ${body}=    Replace String    ${body}             {attendance_percentage}    ${attendance_pct}
+    ${body}=    Replace String    ${body}             {threshold}       ${THRESHOLD}
     # Ensure E.164 format — add +91 prefix for Indian numbers without country code
     ${clean_phone}=       Remove String    ${recipient_phone}    ${SPACE}
     ${formatted_phone}=   Set Variable If
     ...    '${clean_phone}'.startswith('+')    ${clean_phone}
     ...    '+91${clean_phone}'
     # TRY/EXCEPT: gracefully handle Twilio trial-account unverified-number errors
-    # so the bot continues to the next student instead of failing the whole task.
     TRY
         Send Sms    to_number=${formatted_phone}    body=${body}
         Log    SMS dispatched to ${formatted_phone}    INFO
     EXCEPT    message=*unverified*    type=GLOB
         Log    WARN: SMS to ${formatted_phone} skipped — number not verified in Twilio trial account. Register it at twilio.com/user/account/phone-numbers/verified    WARN
-    EXCEPT
-        Log    WARN: SMS to ${formatted_phone} failed — check Twilio credentials    WARN
+    EXCEPT    AS    ${err}
+        Log    WARN: SMS to ${formatted_phone} failed: ${err}    WARN
     END

@@ -217,3 +217,167 @@ class AttendanceTests(TestCase):
         AttendanceRecord.objects.create(student=s, status='Present')
         self.assertFalse(s.needs_alert)
 
+    def test_excused_leave_does_not_penalize_attendance(self):
+        """Excused records should not decrease attendance percentage."""
+        s = self._make_student('ATTEXC')
+        # 1 Present, 1 Excused -> Should be 100.0% (1/1)
+        AttendanceRecord.objects.create(student=s, date=date(2026, 9, 1), status='Present')
+        AttendanceRecord.objects.create(student=s, date=date(2026, 9, 2), status='Excused')
+        self.assertEqual(s.attendance_percentage, 100.0)
+
+
+class CryptoTests(TestCase):
+    """Field encryption and decryption tests."""
+
+    def test_encrypt_decrypt_roundtrip(self):
+        from core.crypto import encrypt_value, decrypt_value, mask_value
+        secret = "super-secret-password-1234"
+        encrypted = encrypt_value(secret)
+        self.assertNotEqual(secret, encrypted)
+        self.assertTrue(encrypted.startswith("gAAAAA"))
+        decrypted = decrypt_value(encrypted)
+        self.assertEqual(secret, decrypted)
+        masked = mask_value(encrypted)
+        self.assertTrue("••••" in masked)
+
+    def test_legacy_plaintext_handling(self):
+        from core.crypto import decrypt_value
+        plaintext = "legacy_unencrypted_token"
+        self.assertEqual(decrypt_value(plaintext), plaintext)
+
+
+class StudentPINTests(TestCase):
+    """Student PIN code authentication tests."""
+
+    def setUp(self):
+        self.student_with_pin = Student.objects.create(
+            name='PIN Student', enrollment_number='PIN001',
+            parent_email='pin@p.com', parent_phone='999',
+            pin_code='4321'
+        )
+        self.student_no_pin = Student.objects.create(
+            name='No PIN Student', enrollment_number='NOPIN001',
+            parent_email='nopin@p.com', parent_phone='888'
+        )
+
+    def test_correct_pin_logs_in(self):
+        response = self.client.post(reverse('student_login'), {
+            'enrollment_number': 'PIN001',
+            'pin_code': '4321'
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('PIN001', response['Location'])
+
+    def test_wrong_pin_fails(self):
+        response = self.client.post(reverse('student_login'), {
+            'enrollment_number': 'PIN001',
+            'pin_code': '0000'
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Invalid PIN code')
+
+    def test_no_pin_student_logs_in_without_pin(self):
+        response = self.client.post(reverse('student_login'), {
+            'enrollment_number': 'NOPIN001',
+            'pin_code': ''
+        })
+        self.assertEqual(response.status_code, 302)
+
+
+class ReconciliationCommandTests(TestCase):
+    """Daily absence reconciliation command tests."""
+
+    def setUp(self):
+        self.s1 = Student.objects.create(
+            name='S1', enrollment_number='R001',
+            parent_email='r1@r.com', parent_phone='1'
+        )
+        self.s2 = Student.objects.create(
+            name='S2', enrollment_number='R002',
+            parent_email='r2@r.com', parent_phone='2'
+        )
+
+    def test_reconciliation_marks_absent(self):
+        from django.core.management import call_command
+        target = date(2026, 9, 15)
+        # S1 is present on target date
+        AttendanceRecord.objects.create(student=self.s1, date=target, status='Present')
+        # S2 has no record -> reconciliation should mark S2 absent
+        call_command('reconcile_attendance', date=target.strftime('%Y-%m-%d'))
+        
+        rec1 = AttendanceRecord.objects.get(student=self.s1, date=target)
+        self.assertEqual(rec1.status, 'Present')
+        rec2 = AttendanceRecord.objects.get(student=self.s2, date=target)
+        self.assertEqual(rec2.status, 'Absent')
+
+    def test_reconciliation_idempotence(self):
+        from django.core.management import call_command
+        target = date(2026, 9, 16)
+        call_command('reconcile_attendance', date=target.strftime('%Y-%m-%d'))
+        count1 = AttendanceRecord.objects.filter(date=target).count()
+        call_command('reconcile_attendance', date=target.strftime('%Y-%m-%d'))
+        count2 = AttendanceRecord.objects.filter(date=target).count()
+        self.assertEqual(count1, count2)
+
+
+class LeaveToAttendanceIntegrationTests(TestCase):
+    """Verifies approved leaves automatically create Excused attendance records."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='fac1', password='p1', is_staff=True, is_active=True)
+        self.profile = FacultyProfile.objects.create(user=self.user, department='CS', is_approved=True)
+        self.student = Student.objects.create(name='LStudent', enrollment_number='L001', parent_email='l@l.com', parent_phone='1')
+
+    def test_approved_leave_marks_excused(self):
+        leave = LeaveApplication.objects.create(
+            student=self.student, date_requested=date(2026, 9, 10), reason='Medical'
+        )
+        self.client.login(username='fac1', password='p1')
+        self.client.post(reverse('manage_leave', kwargs={'leave_id': leave.id, 'action': 'approve'}))
+        
+        record = AttendanceRecord.objects.get(student=self.student, date=date(2026, 9, 10))
+        self.assertEqual(record.status, 'Excused')
+
+    def test_rejected_leave_reverts_to_absent(self):
+        leave = LeaveApplication.objects.create(
+            student=self.student, date_requested=date(2026, 9, 11), reason='Vacation'
+        )
+        AttendanceRecord.objects.create(student=self.student, date=date(2026, 9, 11), status='Excused')
+        self.client.login(username='fac1', password='p1')
+        self.client.post(reverse('manage_leave', kwargs={'leave_id': leave.id, 'action': 'reject'}))
+        
+        record = AttendanceRecord.objects.get(student=self.student, date=date(2026, 9, 11))
+        self.assertEqual(record.status, 'Absent')
+
+
+class TasksRobotNonMutationTests(TestCase):
+    """Verify save_alert_config never mutates tasks.robot on disk."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='fac2', password='p2', is_staff=True, is_active=True)
+        self.profile = FacultyProfile.objects.create(user=self.user, department='CS', is_approved=True)
+        AlertConfiguration.objects.create(faculty=self.profile)
+
+    def test_saving_alert_config_does_not_touch_tasks_robot(self):
+        import os
+        from pathlib import Path
+        robot_path = Path(__file__).resolve().parent.parent.parent / 'rpa_bot' / 'tasks.robot'
+        with open(robot_path, 'r') as f:
+            original_content = f.read()
+
+        self.client.login(username='fac2', password='p2')
+        self.client.post(reverse('save_alert_config'), {
+            'gmail_address': 'fac2@gmail.com',
+            'gmail_app_password': 'secretapppassword123',
+            'alert_threshold': '80',
+            'alert_email_subject': 'Custom Subject',
+            'alert_email_body': 'Custom Body',
+            'sms_alert_body': 'Custom SMS',
+        })
+
+        with open(robot_path, 'r') as f:
+            new_content = f.read()
+
+        self.assertEqual(original_content, new_content, "tasks.robot must NEVER be modified on disk!")
+
+

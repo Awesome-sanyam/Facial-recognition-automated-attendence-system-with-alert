@@ -24,7 +24,8 @@ except ImportError:
 
 from .models import (
     FacultyProfile, AlertConfiguration,
-    Student, AttendanceRecord, LeaveApplication
+    Student, AttendanceRecord, LeaveApplication,
+    HolidayCalendar, RPABotLog,
 )
 
 
@@ -60,10 +61,20 @@ def home(request):
 def student_login(request):
     if request.method == "POST":
         enrollment = request.POST.get("enrollment_number", "").strip()
-        if Student.objects.filter(enrollment_number=enrollment).exists():
-            request.session['student_enrollment'] = enrollment
-            return redirect('dashboard', enrollment_number=enrollment)
-        return render(request, 'core/login.html', {'error': 'No student found with that enrollment number.'})
+        pin = request.POST.get("pin_code", "").strip()
+        student = Student.objects.filter(enrollment_number=enrollment).first()
+        if not student:
+            return render(request, 'core/login.html', {
+                'error': 'No student found with that enrollment number.',
+                'face_recognition_available': FACE_RECOGNITION_AVAILABLE
+            })
+        if student.pin_code and student.pin_code != pin:
+            return render(request, 'core/login.html', {
+                'error': 'Invalid PIN code. Please enter your 4-digit PIN.',
+                'face_recognition_available': FACE_RECOGNITION_AVAILABLE
+            })
+        request.session['student_enrollment'] = enrollment
+        return redirect('dashboard', enrollment_number=enrollment)
     return render(request, 'core/login.html', {'face_recognition_available': FACE_RECOGNITION_AVAILABLE})
 
 
@@ -253,6 +264,11 @@ def faculty_dashboard(request):
             'attendancerecord',
             filter=Q(attendancerecord__status='Present'),
             distinct=True
+        ),
+        excused_count=Count(
+            'attendancerecord',
+            filter=Q(attendancerecord__status='Excused'),
+            distinct=True
         )
     ).order_by('name')
 
@@ -265,14 +281,20 @@ def faculty_dashboard(request):
 
     alert_config, _ = AlertConfiguration.objects.get_or_create(faculty=profile)
 
-    # FIX: Compute low_attendance_count from annotations (DB-level, no Python loop)
     threshold = alert_config.alert_threshold
     total_students = students.count()
     low_attendance_count = sum(
         1 for s in students
-        if s.total_classes == 0 or (s.present_count / s.total_classes * 100) < threshold
+        if (s.total_classes - s.excused_count) == 0 or (s.present_count / max(1, (s.total_classes - s.excused_count)) * 100) < threshold
     )
     pending_count = pending_leaves.count()
+
+    # ── New: RPA Bot audit logs (most recent 20) ──────────────────────────────
+    bot_logs = RPABotLog.objects.select_related('triggered_by').order_by('-started_at')[:20]
+
+    # ── New: Holiday count for dashboard badge ────────────────────────────────
+    from datetime import date as date_cls
+    holiday_count = HolidayCalendar.objects.filter(date__gte=date_cls.today()).count()
 
     context = {
         'profile': profile,
@@ -286,6 +308,9 @@ def faculty_dashboard(request):
         'low_attendance_count': low_attendance_count,
         'pending_count': pending_count,
         'active_tab': request.GET.get('tab', 'students'),
+        # New context for RPA Bots tab
+        'bot_logs': bot_logs,
+        'holiday_count': holiday_count,
     }
     return render(request, 'core/faculty_dashboard.html', context)
 
@@ -306,19 +331,50 @@ def add_student(request):
         department = request.POST.get("department", "").strip()
         year       = request.POST.get("year", 1)
 
+        pin_code   = request.POST.get("pin_code", "").strip()
+        photo      = request.FILES.get("student_photo")
+
         if not name or not enr:
             messages.error(request, "Student name and enrollment number are required.")
         elif Student.objects.filter(enrollment_number=enr).exists():
             messages.error(request, f"Enrollment number '{enr}' already exists.")
         else:
+            face_enc_json = None
+            if photo:
+                try:
+                    import face_recognition
+                    import numpy as np
+                    import cv2
+                    img_bytes = photo.read()
+                    np_arr = np.frombuffer(img_bytes, np.uint8)
+                    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+                    if img is not None:
+                        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                        encodings = face_recognition.face_encodings(rgb_img)
+                        if encodings:
+                            face_enc_json = json.dumps(encodings[0].tolist())
+                            # Save copy to known_faces/<enrollment>.jpg
+                            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                            faces_dir = os.path.join(base_dir, 'face_recognition', 'known_faces')
+                            os.makedirs(faces_dir, exist_ok=True)
+                            cv2.imwrite(os.path.join(faces_dir, f"{enr}.jpg"), img)
+                        else:
+                            messages.warning(request, f"Student added, but no face was detected in the photo.")
+                except Exception as e:
+                    messages.warning(request, f"Student added, but could not process photo: {e}")
+
             Student.objects.create(
                 name=name, enrollment_number=enr, email=email,
                 parent_email=p_email, parent_phone=p_phone,
-                department=department, year=year, added_by=profile
+                department=department, year=year, added_by=profile,
+                pin_code=pin_code, face_encoding=face_enc_json
             )
-            messages.success(request, f"Student '{name}' added successfully.")
-            # FIX: Invalidate face recognition cache so the new student can
-            # immediately log in via face scan without a server restart.
+            success_msg = f"Student '{name}' added successfully."
+            if face_enc_json:
+                success_msg += " Face recognition biometric profile enrolled!"
+            messages.success(request, success_msg)
+
+            # Invalidate face cache so the new student can immediately scan
             try:
                 from face_login import invalidate_cache
                 invalidate_cache()
@@ -352,16 +408,29 @@ def manage_leave(request, leave_id, action):
         leave.status = 'Approved'
         leave.reviewed_by = profile
         leave.reviewed_at = timezone.now()
-        messages.success(request, f"Leave for {leave.student.name} approved.")
+        leave.save()
+        # Automatically update or create an attendance record with status='Excused'
+        AttendanceRecord.objects.update_or_create(
+            student=leave.student,
+            date=leave.date_requested,
+            defaults={'status': 'Excused'}
+        )
+        messages.success(request, f"Leave for {leave.student.name} approved and attendance recorded as Excused.")
     elif action == 'reject':
         leave.status = 'Rejected'
         leave.reviewed_by = profile
         leave.reviewed_at = timezone.now()
+        leave.save()
+        # If an Excused record was previously generated, revert it to Absent
+        AttendanceRecord.objects.filter(
+            student=leave.student,
+            date=leave.date_requested,
+            status='Excused'
+        ).update(status='Absent')
         messages.warning(request, f"Leave for {leave.student.name} rejected.")
     else:
         messages.error(request, "Invalid leave action.")
         return redirect('/faculty/dashboard/?tab=leaves')
-    leave.save()
     return redirect('/faculty/dashboard/?tab=leaves')
 
 
@@ -378,8 +447,11 @@ def save_alert_config(request):
             return redirect('/faculty/dashboard/?tab=alerts')
         config, _ = AlertConfiguration.objects.get_or_create(faculty=profile)
         config.gmail_address       = request.POST.get("gmail_address", "").strip()
-        config.gmail_app_password  = request.POST.get("gmail_app_password", "").strip()
-        # FIX: Clamp threshold to valid 0–100 range to prevent logic errors.
+        
+        gmail_pass = request.POST.get("gmail_app_password", "").strip()
+        if gmail_pass and not gmail_pass.startswith('•'):
+            config.set_encrypted_gmail_password(gmail_pass)
+
         raw_threshold = request.POST.get("alert_threshold", "75")
         config.alert_threshold     = max(0, min(100, int(raw_threshold) if raw_threshold.isdigit() else 75))
         config.email_alerts_enabled = request.POST.get("email_alerts_enabled") == "on"
@@ -388,45 +460,26 @@ def save_alert_config(request):
 
         # SMS settings
         config.twilio_account_sid  = request.POST.get("twilio_account_sid", "").strip()
-        config.twilio_auth_token   = request.POST.get("twilio_auth_token", "").strip()
+        twilio_tok = request.POST.get("twilio_auth_token", "").strip()
+        if twilio_tok and not twilio_tok.startswith('•'):
+            config.set_encrypted_twilio_token(twilio_tok)
+
         config.twilio_from_number  = request.POST.get("twilio_from_number", "").strip()
         config.sms_alerts_enabled  = request.POST.get("sms_alerts_enabled") == "on"
         config.sms_alert_body      = request.POST.get("sms_alert_body", "").strip()
 
+        # ── NEW: Bot 2 & 5 config ──────────────────────────────────────────────
+        dean_email = request.POST.get("dean_email", "").strip()
+        if dean_email:
+            config.dean_email = dean_email
+
+        raw_hod_threshold = request.POST.get("hod_report_threshold", "").strip()
+        if raw_hod_threshold.isdigit():
+            config.hod_report_threshold = max(0, min(100, int(raw_hod_threshold)))
+
         config.save()
-        _update_robot_config(config)
-        messages.success(request, "Alert configuration saved and applied to the RPA bot.")
+        messages.success(request, "Alert configuration saved securely.")
     return redirect('/faculty/dashboard/?tab=alerts')
-
-
-def _update_robot_config(config):
-    """Rewrites the Robot Framework tasks.robot variables to match the DB config."""
-    robot_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        'rpa_bot', 'tasks.robot'
-    )
-    if not os.path.exists(robot_path):
-        return
-    with open(robot_path, 'r') as f:
-        content = f.read()
-
-    import re
-    # FIX: Use '[ \t]+.*' (greedy to end-of-line) instead of '[ \t]+\S+' so
-    # multi-word values like Google App Passwords (e.g. 'abcd efgh ijkl mnop')
-    # are not silently truncated at the first space.
-    if config.gmail_address:
-        content = re.sub(r'(?m)^(\$\{GMAIL_USER\})[ \t]+.*', rf'\1     {config.gmail_address}', content)
-    if config.gmail_app_password:
-        content = re.sub(r'(?m)^(\$\{GMAIL_PASS\})[ \t]+.*', rf'\1     {config.gmail_app_password}', content)
-
-    # Twilio Variables — always overwrite to keep in sync
-    content = re.sub(r'(?m)^(\$\{TWILIO_SID\})[ \t]+.*',   rf'\1     {config.twilio_account_sid}',  content)
-    content = re.sub(r'(?m)^(\$\{TWILIO_TOKEN\})[ \t]+.*', rf'\1     {config.twilio_auth_token}',   content)
-    content = re.sub(r'(?m)^(\$\{TWILIO_FROM\})[ \t]+.*',  rf'\1     {config.twilio_from_number}',  content)
-    content = re.sub(r'(?m)^(\$\{SMS_ENABLED\})[ \t]+.*',  rf'\1     {str(config.sms_alerts_enabled)}', content)
-
-    with open(robot_path, 'w') as f:
-        f.write(content)
 
 
 @user_passes_test(is_approved_faculty, login_url='/faculty/login/')
@@ -455,7 +508,8 @@ def run_alert_bot(request):
         logger.info("Config: gmail=%r, sms_enabled=%s, threshold=%s",
                     config.gmail_address, config.sms_alerts_enabled, config.alert_threshold)
 
-        if not config.gmail_address or not config.gmail_app_password:
+        gmail_password = config.get_decrypted_gmail_password()
+        if not config.gmail_address or not gmail_password:
             logger.error("Gmail credentials missing")
             messages.error(request, "Gmail credentials not configured. Set them in Alert Configuration first.")
             return redirect('/faculty/dashboard/?tab=alerts')
@@ -468,11 +522,16 @@ def run_alert_bot(request):
                 'attendancerecord',
                 filter=Q(attendancerecord__status='Present'),
                 distinct=True
+            ),
+            excused_count=Count(
+                'attendancerecord',
+                filter=Q(attendancerecord__status='Excused'),
+                distinct=True
             )
         ))
         low_students = [
             s for s in all_students
-            if s.total_classes == 0 or (s.present_count / s.total_classes * 100) < threshold
+            if (s.total_classes - s.excused_count) == 0 or (s.present_count / max(1, (s.total_classes - s.excused_count)) * 100) < threshold
         ]
         logger.info("Students: total=%d, below threshold=%d", len(all_students), len(low_students))
 
@@ -488,7 +547,7 @@ def run_alert_bot(request):
             logger.info("Connecting Gmail SMTP...")
             smtp_server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
             smtp_server.starttls()
-            smtp_server.login(config.gmail_address, config.gmail_app_password)
+            smtp_server.login(config.gmail_address, gmail_password)
             logger.info("Gmail connected OK")
         except Exception as e:
             logger.error("Gmail SMTP failed: %s", e)
@@ -498,21 +557,26 @@ def run_alert_bot(request):
         twilio_client = None
         sms_errors = []
         sms_sent = 0
-        if config.sms_alerts_enabled and config.twilio_account_sid and config.twilio_auth_token:
+        twilio_token = config.get_decrypted_twilio_token()
+        if config.sms_alerts_enabled and config.twilio_account_sid and twilio_token:
             try:
                 from twilio.rest import Client as TwilioClient
-                twilio_client = TwilioClient(config.twilio_account_sid, config.twilio_auth_token)
+                twilio_client = TwilioClient(config.twilio_account_sid, twilio_token)
                 logger.info("Twilio client OK")
+            except Exception as e:
+                logger.error("Twilio failed: %s", e)
+                sms_errors.append(f"Twilio: {e}")
             except Exception as e:
                 logger.error("Twilio failed: %s", e)
                 sms_errors.append(f"Twilio: {e}")
 
         # ── Send per-student alerts ─────────────────────────────────────────────
         for student in low_students:
-            # Compute pct from annotations (no extra DB hit)
+            # Compute pct from annotations taking into account excused records
+            countable = student.total_classes - student.excused_count
             pct = (
-                round(student.present_count / student.total_classes * 100, 2)
-                if student.total_classes > 0 else 0
+                round(student.present_count / countable * 100, 2)
+                if countable > 0 else 0.0
             )
             name = student.name
             logger.info("Alerting: %s (%s%%)", name, pct)

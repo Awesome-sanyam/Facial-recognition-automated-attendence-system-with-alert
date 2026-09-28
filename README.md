@@ -28,14 +28,16 @@
 | Feature | Description |
 |---|---|
 | 🔍 **Face Recognition Login** | Students authenticate via webcam — real-time dlib face encoding |
-| 🆔 **Enrollment Number Login** | Alternative text-based login for students |
+| 🆔 **PIN-Protected Enrollment Login**| Alternative text-based login with 6-digit student security PIN |
 | 📊 **Live Attendance Dashboard** | Students view attendance %, full history & leave status |
-| 🏛️ **Faculty Admin Portal** | Full student CRUD, leave approval/rejection, alert management |
-| 🤖 **One-Click RPA Alert Bot** | Faculty clicks a button → bot instantly scans all students & fires alerts |
-| 📧 **Email Alerts** | Gmail SMTP warning dispatched to parent email |
-| 📱 **SMS Alerts** | Twilio SMS fired to parent phone (E.164 auto-formatted) |
+| 🏛️ **Faculty Admin Portal** | Full student CRUD with photo upload, leave approval/rejection, alert management |
+| 🛡️ **AES-128 Field Encryption** | Alert credentials encrypted at rest in DB via Fernet (AES-128-CBC + HMAC-SHA256) |
+| 🤖 **Resilient RPA Alert Bot** | Browser automation bot with zero disk contamination and headless support |
+| 📧 **Email Alerts** | Gmail SMTP warning dispatched to parent email with dynamic templates |
+| 📱 **SMS Alerts** | Twilio SMS fired to parent phone (E.164 auto-formatted) with graceful trial handling |
+| ⚖️ **Absence Reconciliation** | Automated reconciliation ensures unrecorded days become explicit Absences |
 | 🌙 **Dark / Light Theme** | Persistent monochromatic theme toggle across all pages |
-| 📋 **Leave Management** | Students apply for leave; faculty approve/reject |
+| 📋 **Leave Management** | Excused leaves automatically protect attendance percentages upon approval |
 | 🔐 **Role-Based Auth** | Separate secure flows for Students and Faculty |
 | 🛡️ **Django Admin** | Superuser panel to approve faculty and manage all data |
 
@@ -169,21 +171,35 @@ Open **http://127.0.0.1:8000** 🚀
 | 5 | **Alert Configuration tab** → Enter Gmail + Twilio credentials → **Save** |
 | 6 | Click **"▶ Run Alert Bot Now"** → emails & SMS fire instantly |
 
-### 🤖 Terminal Bot (Demo / Testing)
+### 🤖 RPA Terminal Bot (Interactive or Headless)
+
+Run the bot with secure in-memory credential injection (zero disk mutation):
 
 ```bash
-cd rpa_bot
-robot tasks.robot
+# Visual interactive execution in Chrome:
+bash run_rpa_bot.sh
+
+# Or run in headless mode (no browser window popup):
+bash run_rpa_bot.sh --headless
 ```
 
-This opens Chrome, logs into Django Admin, scans all student rows, and dispatches alerts to anyone below 75%.
+This opens Chrome (or runs headlessly), logs into the Faculty Web Portal, audits every student row, calculates attendance with excused exclusions, and dispatches alerts via Gmail SMTP & Twilio SMS with error boundaries.
 
-### 📸 Register Student Faces
+### 📸 Face Registration & Synchronization
 
 ```bash
-cd face_recognition
-python scanner.py
-# Follow the on-screen prompts to capture and encode a student's face
+# Bulk sync existing photos in known_faces/ directly into DB face embeddings:
+python web_app/manage.py sync_face_encodings
+
+# Run real-time classroom attendance scanner:
+python face_recognition/scanner.py
+```
+
+### ⚖️ Attendance Reconciliation
+
+```bash
+# Mark absent for all students who had no scan today:
+python web_app/manage.py reconcile_attendance
 ```
 
 ---
@@ -196,7 +212,7 @@ python scanner.py
 2. Go to → [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
 3. Create an App Password for "Mail"
 4. Copy the 16-character password
-5. Paste into Faculty Dashboard → **Alert Configuration**
+5. Paste into Faculty Dashboard → **Alert Configuration** (automatically encrypted in DB)
 
 ### Twilio — SMS Setup
 
@@ -205,7 +221,7 @@ python scanner.py
    - **Account SID** (starts with `AC...`)
    - **Auth Token**
    - A **Twilio Phone Number** (e.g. `+1XXXXXXXXXX`)
-3. Paste all three into Faculty Dashboard → **Alert Configuration**
+3. Paste all three into Faculty Dashboard → **Alert Configuration** (automatically encrypted in DB)
 
 > **Trial Account Note:** Twilio free trials can only SMS to verified numbers.  
 > Verify numbers at [console.twilio.com/phone-numbers/verified](https://console.twilio.com/us1/develop/phone-numbers/manage/verified)  
@@ -220,34 +236,39 @@ python scanner.py
 │
 ├── 📂 web_app/                          # Django Project Root
 │   ├── 📂 core/                         # Main Application
+│   │   ├── crypto.py                    # AES-128 Fernet encryption for secrets
+│   │   ├── 📂 management/commands/      # Custom CLI commands (reconcile, sync faces)
 │   │   ├── 📂 templates/core/
 │   │   │   ├── home.html                # Landing — portal selection
-│   │   │   ├── login.html               # Student login (face + enrollment)
+│   │   │   ├── login.html               # Student login (face + enrollment + PIN)
 │   │   │   ├── dashboard.html           # Student attendance dashboard
 │   │   │   ├── apply_leave.html         # Leave application form
 │   │   │   ├── faculty_login.html       # Faculty authentication
 │   │   │   ├── faculty_register.html    # Faculty registration
-│   │   │   └── faculty_dashboard.html   # Full faculty admin portal
+│   │   │   └── faculty_dashboard.html   # Full faculty admin portal + photo upload
 │   │   ├── models.py                    # DB schema
 │   │   ├── views.py                     # All business logic + alert engine
 │   │   ├── urls.py                      # URL routing
+│   │   ├── tests.py                     # 32 automated tests
 │   │   └── admin.py                     # Django Admin customization
 │   └── attendance_system/
 │       ├── settings.py                  # Django settings
 │       └── urls.py                      # Root URL conf
 │
 ├── 📂 rpa_bot/                          # Robot Framework Bot
-│   ├── tasks.robot                      # Main RPA task (terminal use)
+│   ├── tasks.robot                      # Main RPA task (supports --headless & CLI vars)
 │   ├── EmailLibrary.py                  # Custom Gmail SMTP RF library
 │   └── SmsLibrary.py                    # Custom Twilio SMS RF library
 │
 ├── 📂 face_recognition/                 # Face Recognition Module
-│   ├── scanner.py                       # Capture & encode student faces
-│   └── face_login.py                    # Real-time recognition for web login
+│   ├── scanner.py                       # Capture & encode student faces (cached)
+│   └── face_login.py                    # Real-time recognition (DB vector backed)
 │
+├── run_rpa_bot.sh                       # Zero-mutation shell runner
 ├── requirements.txt                     # All Python dependencies (pinned)
 ├── .env.example                         # Environment variable template
 ├── .gitignore                           # Excludes venv, secrets, artifacts
+├── Report.md                            # Comprehensive system audit & roadmap
 └── README.md
 ```
 
@@ -257,11 +278,11 @@ python scanner.py
 
 | Model | Key Fields |
 |---|---|
-| `Student` | `name`, `enrollment_number`, `parent_email`, `parent_phone`, `face_encoding` |
-| `AttendanceRecord` | `student (FK)`, `date`, `time`, `status` (Present/Absent) |
+| `Student` | `name`, `enrollment_number`, `pin_code`, `parent_email`, `parent_phone`, `face_encoding` (128-d JSON) |
+| `AttendanceRecord` | `student (FK)`, `date`, `time`, `status` (`Present`, `Absent`, `Excused`) |
 | `LeaveApplication` | `student (FK)`, `date_requested`, `reason`, `status`, `reviewed_by` |
 | `FacultyProfile` | `user (1-1)`, `department`, `phone`, `is_approved` |
-| `AlertConfiguration` | `faculty (1-1)`, gmail creds, twilio creds, threshold %, template body |
+| `AlertConfiguration` | `faculty (1-1)`, encrypted Gmail creds, encrypted Twilio creds, threshold %, template body |
 
 ---
 

@@ -82,6 +82,7 @@ This system solves three real-world problems in university attendance management
 |---|---|---|
 | **Web Framework** | Django | 6.0.7 |
 | **Database** | SQLite (default) / PostgreSQL (optional) | — |
+| **Security & Encryption** | `cryptography` (AES-128 Fernet) | 50.0.1 |
 | **Face Recognition** | `face_recognition` library (dlib-based) | 1.3.0 |
 | **Computer Vision** | OpenCV (`opencv-python`) | 5.0.0 |
 | **RPA Automation** | Robot Framework | 7.4.2 |
@@ -102,14 +103,15 @@ RPA Project/
 ├── .env.example                # Template — copy to .env and fill in
 ├── .gitignore                  # Excludes .env, .venv, __pycache__, etc.
 ├── requirements.txt            # All Python dependencies (pip install -r)
-├── run_rpa_bot.sh              # One-click script to run the RPA bot
+├── run_rpa_bot.sh              # One-click zero-mutation script to run the RPA bot
 ├── About.md                    # THIS FILE — full project documentation
+├── Report.md                   # Full architectural audit and gap analysis
 │
 ├── face_recognition/
-│   ├── known_faces/            # Store one .jpg/.png per student (filename = enrollment number)
+│   ├── known_faces/            # Image store (synced with DB vector embeddings)
 │   │   └── ENR2024001.jpg      # e.g. ENR2024001.jpg for student with that enrollment number
-│   ├── face_login.py           # API: receives base64 webcam frame → returns matched student
-│   └── scanner.py              # Standalone: opens webcam, scans in real-time, logs to DB
+│   ├── face_login.py           # API: DB-backed 128-d vector matching + in-memory cache
+│   └── scanner.py              # Standalone: real-time webcam scanner (frame-skipping + DB cache)
 │
 ├── web_app/
 │   ├── manage.py               # Django management entry point
@@ -121,19 +123,25 @@ RPA Project/
 │   │   └── wsgi.py / asgi.py   # WSGI/ASGI entry points
 │   │
 │   └── core/                   # Django APP — all business logic lives here
+│       ├── crypto.py           # AES-128 Fernet symmetric encryption for sensitive credentials
 │       ├── models.py           # DB models: FacultyProfile, Student, AttendanceRecord, etc.
-│       ├── views.py            # All view functions (587 lines)
-│       ├── urls.py             # URL patterns for all 16 routes
+│       ├── views.py            # All view functions with alert engine and leave workflows
+│       ├── urls.py             # URL patterns for all routes
+│       ├── tests.py            # Comprehensive test suite (32 unit/integration tests)
 │       ├── admin.py            # Django admin customisation
+│       ├── management/         # Custom Django management commands
+│       │   └── commands/
+│       │       ├── reconcile_attendance.py  # Daily cron/CLI absent attendance reconciliation
+│       │       └── sync_face_encodings.py   # Bulk extract & sync 128-d face vectors into DB
 │       ├── templates/core/     # HTML templates (9 pages)
 │       │   ├── home.html              # Landing page
-│       │   ├── login.html             # Student login + face recognition UI
+│       │   ├── login.html             # Student login + face recognition UI + PIN entry
 │       │   ├── dashboard.html         # Student's personal dashboard
 │       │   ├── apply_leave.html       # Student leave application form
 │       │   ├── faculty_login.html     # Faculty login page
 │       │   ├── faculty_register.html  # Faculty registration form
 │       │   ├── faculty_pending.html   # "Awaiting approval" screen
-│       │   ├── faculty_dashboard.html # Main faculty control panel (4 tabs)
+│       │   ├── faculty_dashboard.html # Main faculty control panel (4 tabs + direct photo upload)
 │       │   └── _theme_css.html        # Shared CSS variables/theme
 │       └── migrations/         # Auto-generated DB migration files
 │
@@ -169,19 +177,19 @@ Extends Django's built-in `User` with faculty-specific fields.
 ---
 
 ### AlertConfiguration
-One-per-faculty record storing all RPA/alert settings.
+One-per-faculty record storing all RPA/alert settings. Sensitive credentials (`gmail_app_password`, `twilio_account_sid`, `twilio_auth_token`) are symmetrically encrypted using Fernet (AES-128-CBC + HMAC-SHA256) before saving to the database.
 
 | Field | Type | Description |
 |---|---|---|
 | `faculty` | OneToOneField → FacultyProfile | Owner |
 | `gmail_address` | EmailField | Gmail account to send from |
-| `gmail_app_password` | CharField | Google App Password (NOT your Gmail password) |
+| `gmail_app_password` | CharField (Encrypted) | Google App Password (stored encrypted via AES-128 Fernet) |
 | `alert_threshold` | IntegerField | Default 75 — students below this % get alerted |
 | `email_alerts_enabled` | BooleanField | Toggle email alerts |
 | `alert_email_subject` | CharField | Customisable email subject |
 | `alert_email_body` | TextField | Template with {student_name}, {attendance_percentage}, {threshold} |
-| `twilio_account_sid` | CharField | Twilio Account SID |
-| `twilio_auth_token` | CharField | Twilio Auth Token |
+| `twilio_account_sid` | CharField (Encrypted) | Twilio Account SID (stored encrypted via AES-128 Fernet) |
+| `twilio_auth_token` | CharField (Encrypted) | Twilio Auth Token (stored encrypted via AES-128 Fernet) |
 | `twilio_from_number` | CharField | Twilio phone number (E.164 format) |
 | `sms_alerts_enabled` | BooleanField | Toggle SMS alerts |
 | `last_run_at` | DateTimeField | Timestamp of last alert run |
@@ -194,7 +202,9 @@ Every student registered in the system.
 | Field | Type | Description |
 |---|---|---|
 | `name` | CharField | Full name |
-| `enrollment_number` | CharField (unique) | e.g., ENR2024001 — used for face photo filename too |
+| `enrollment_number` | CharField (unique) | e.g., ENR2024001 — unique student identifier |
+| `pin_code` | CharField (optional) | 6-digit numeric security PIN for enrollment login |
+| `face_encoding` | TextField (JSON) | 128-dimensional dlib face embedding vector stored directly in DB |
 | `email` | EmailField | Student's email (optional) |
 | `parent_email` | EmailField | Alert emails go here |
 | `parent_phone` | CharField | Alert SMS goes here |
@@ -203,8 +213,8 @@ Every student registered in the system.
 | `added_by` | FK → FacultyProfile | Which faculty added this student |
 
 **Computed properties (Python, not DB columns):**
-- `attendance_percentage` — (present_records / total_records) × 100
-- `needs_alert` — True if attendance_percentage < 75
+- `attendance_percentage` — `present / (total - excused) * 100` (Excused leaves do not decrease attendance)
+- `needs_alert` — True if attendance_percentage < alert threshold (default 75%)
 
 ---
 
@@ -214,11 +224,11 @@ One record per student per day.
 | Field | Type | Description |
 |---|---|---|
 | `student` | FK → Student | Which student |
-| `date` | DateField (auto) | Date of attendance (IST timezone) |
+| `date` | DateField (default=today) | Date of attendance (IST timezone) |
 | `time` | TimeField (auto) | Time of marking |
-| `status` | CharField | "Present" or "Absent" |
+| `status` | CharField | "Present", "Absent", or "Excused" |
 
-> Unique constraint: (student, date) — a student can only have one record per day.
+> Unique constraint: `(student, date)` — a student can only have one record per day. Approved leaves automatically set or convert the day's record to `Excused`.
 
 ---
 
@@ -653,6 +663,32 @@ Server starts at: http://127.0.0.1:8000/
 
 ---
 
+### Run Daily Attendance Reconciliation (Management Command)
+
+Ensures students who did not attend receive an explicit `Absent` record so attendance percentages accurately reflect reality rather than remaining stuck at 100%:
+
+```bash
+# Reconcile today's attendance for all students:
+python web_app/manage.py reconcile_attendance
+
+# Or reconcile for a specific historical date:
+python web_app/manage.py reconcile_attendance --date 2026-09-20
+```
+
+---
+
+### Bulk Sync Face Encodings to Database
+
+Extracts 128-dimensional face vectors from all photos in `face_recognition/known_faces/` and stores them directly into `Student.face_encoding` in SQLite:
+
+```bash
+python web_app/manage.py sync_face_encodings
+```
+
+*(Note: Faculty can also upload face photos directly in the web portal under **Faculty Dashboard → Students Tab → Add Student**, which computes and saves the face encoding automatically!)*
+
+---
+
 ### Run the Classroom Face Scanner
 
 > Make sure the Django server is also running in a separate terminal.
@@ -665,6 +701,7 @@ python face_recognition/scanner.py
 - A webcam window opens titled "Classroom Attendance Scanner"
 - Green box = recognised student (attendance marked)
 - Red box = unknown face
+- Uses frame-skipping (1 in 3 frames) and in-memory DB caching to maintain high FPS and zero DB locking
 - Press `q` to quit
 
 ---
@@ -672,26 +709,34 @@ python face_recognition/scanner.py
 ## 12. How to Run the RPA Bot
 
 ### Prerequisites
-1. Django server must be running (`python manage.py runserver`)
+1. Django server must be running (`python web_app/manage.py runserver`)
 2. Alert Configuration must be saved in the Faculty Dashboard (Gmail address + App Password)
 3. Google Chrome must be installed
 
-### Method 1 — One-Click Script (recommended)
+### Method 1 — One-Click Script with Zero-Disk Mutation (Recommended)
 
 ```bash
-# From project root, with venv active
+# From project root, with venv active:
 bash run_rpa_bot.sh
+
+# Or run in HEADLESS mode (no Chrome window, ideal for CI/CD or background execution):
+bash run_rpa_bot.sh --headless
 ```
+
+**Security & Architecture Guarantee:**
+- The script queries the database, decrypts passwords using AES-128 Fernet in memory, and passes them securely to Robot Framework via runtime CLI flags (`--variable GMAIL_USER:...`).
+- `tasks.robot` on disk is **NEVER** modified, preserving clean source control and preventing credential leakage.
 
 What you will see in terminal:
 ```
 ========================================================
-  STEP 1 — Injecting credentials from DB into bot
+  STEP 1 — Reading secure credentials from Database
 ========================================================
-  Gmail:     yourmail@gmail.com
-  SMS:       False
-  Threshold: 75%
-  Credentials injected OK
+  Gmail User : faculty@gmail.com
+  SMS Enabled: True
+  Threshold  : 75.0%
+  Headless   : False
+  Status     : Ready (source files remain clean on disk)
 
 ========================================================
   STEP 2 — Running Robot Framework RPA Bot
@@ -702,7 +747,7 @@ What you will see in terminal:
 ╚══════════════════════════════════════════════════════╝
 ```
 
-Chrome will open and you can watch every step:
+Chrome will open (unless running in `--headless` mode) and you can watch every step:
 - Orange border highlights the element about to be interacted with
 - Fields fill in visibly one character at a time
 - Table rows are highlighted as each student is processed
@@ -712,7 +757,11 @@ Chrome will open and you can watch every step:
 
 ```bash
 cd rpa_bot
-robot --outputdir /tmp/rpa_results tasks.robot
+robot --outputdir /tmp/rpa_results \
+      --variable GMAIL_USER:your_email@gmail.com \
+      --variable GMAIL_PASS:your_app_password \
+      --variable THRESHOLD:75.0 \
+      tasks.robot
 ```
 
 ### Viewing the RPA Report

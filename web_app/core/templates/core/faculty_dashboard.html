@@ -161,6 +161,7 @@
             <a href="?tab=leaves"    class="tab {% if active_tab == 'leaves' %}active{% endif %}">📋 Leave Applications</a>
             <a href="?tab=alerts"    class="tab {% if active_tab == 'alerts' %}active{% endif %}">📧 Alert Configuration</a>
             <a href="?tab=scans"     class="tab {% if active_tab == 'scans' %}active{% endif %}">📡 Live Scanner Feed</a>
+            <a href="?tab=rpa_bots" class="tab {% if active_tab == 'rpa_bots' %}active{% endif %}">⚙️ RPA Bots</a>
         </div>
 
         <!-- ══ TAB: STUDENTS ══════════════════════════════ -->
@@ -168,7 +169,7 @@
             <!-- Add Student Form -->
             <div class="form-card" style="margin-bottom:1.5rem;">
                 <h3>➕ Add New Student</h3>
-                <form method="POST" action="{% url 'add_student' %}">
+                <form method="POST" action="{% url 'add_student' %}" enctype="multipart/form-data">
                     {% csrf_token %}
                     <div class="form-grid">
                         <div class="form-group">
@@ -204,6 +205,14 @@
                                 <option value="4">4th Year</option>
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label>Portal Security PIN (Optional)</label>
+                            <input type="password" name="pin_code" placeholder="e.g. 1234" maxlength="10">
+                        </div>
+                        <div class="form-group">
+                            <label>Student Photo (Face Login)</label>
+                            <input type="file" name="student_photo" accept="image/jpeg,image/png,image/jpg" style="padding:.5rem;font-size:.8rem;">
+                        </div>
                     </div>
                     <div class="form-footer">
                         <button type="submit" class="btn-submit">Add Student →</button>
@@ -236,13 +245,13 @@
                             data-enrollment="{{ s.enrollment_number }}"
                             data-parent-email="{{ s.parent_email }}"
                             data-parent-phone="{{ s.parent_phone }}"
-                            data-attendance="{{ s.attendance_percentage }}">
+                            data-attendance="{{ s.calculated_percentage }}">
                             <td><div class="td-name">{{ s.name }}</div><div class="td-sub">{{ s.email|default:"—" }}</div></td>
                             <td style="font-size:.78rem;color:var(--text-muted)" class="col-enrollment">{{ s.enrollment_number }}</td>
                             <td>{{ s.department|default:"—" }}</td>
                             <td>Year {{ s.year }}</td>
                             <td style="font-size:.78rem" class="col-parent-email">{{ s.parent_email }}</td>
-                            <td><span class="badge student-attendance {% if s.attendance_percentage < alert_config.alert_threshold %}b-red{% else %}b-green{% endif %}">{{ s.attendance_percentage }}%</span></td>
+                            <td><span class="badge student-attendance {% if s.calculated_percentage < alert_config.alert_threshold %}b-red{% else %}b-green{% endif %}">{{ s.calculated_percentage }}%</span></td>
                             <td>
                                 <form method="POST" action="{% url 'delete_student' s.id %}" onsubmit="return confirm('Delete {{ s.name }} and ALL their records? This cannot be undone.');" style="display:inline;">
                                     {% csrf_token %}
@@ -318,8 +327,8 @@
                             <input type="email" name="gmail_address" value="{{ alert_config.gmail_address }}" placeholder="yourbot@gmail.com">
                         </div>
                         <div class="form-group" style="margin-bottom:1rem;">
-                            <label>Gmail App Password <span style="color:var(--text-muted);text-transform:none;font-weight:400">(16-letter, no spaces)</span></label>
-                            <input type="text" name="gmail_app_password" value="{{ alert_config.gmail_app_password }}" placeholder="abcdabcdabcdabcd" autocomplete="off">
+                            <label>Gmail App Password <span style="color:var(--text-muted);text-transform:none;font-weight:400">(Encrypted in DB)</span></label>
+                            <input type="password" name="gmail_app_password" value="{% if alert_config.gmail_app_password %}••••••••••••••••{% endif %}" placeholder="Enter 16-letter App Password" autocomplete="new-password">
                         </div>
                         <div class="form-group" style="margin-bottom:1rem;">
                             <label>Attendance Alert Threshold (%)</label>
@@ -358,8 +367,8 @@
                     </div>
 
                     <div class="form-group">
-                        <label>Twilio Auth Token</label>
-                        <input type="password" name="twilio_auth_token" value="{{ alert_config.twilio_auth_token }}" placeholder="Twilio Auth Token" autocomplete="off">
+                        <label>Twilio Auth Token <span style="color:var(--text-muted);text-transform:none;font-weight:400">(Encrypted in DB)</span></label>
+                        <input type="password" name="twilio_auth_token" value="{% if alert_config.twilio_auth_token %}••••••••••••••••{% endif %}" placeholder="Twilio Auth Token" autocomplete="new-password">
                     </div>
 
                     <div class="form-group">
@@ -427,6 +436,15 @@
                 </div>
             </div>
         </div>
+
+        <!-- ══ TAB: RPA BOTS ══════════════════════════════ -->
+        <div class="tab-panel {% if active_tab == 'rpa_bots' %}active{% endif %}">
+            {# Wrap partial in a light Bootstrap-compatible container #}
+            <div style="font-family:'Inter',sans-serif;">
+                {% include "core/_rpa_bots_tab.html" %}
+            </div>
+        </div>
+
     </main>
 
     <script>
