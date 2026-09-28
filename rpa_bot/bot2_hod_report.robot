@@ -31,7 +31,7 @@ Documentation
 ...
 ...    ══════════════════════════════════════════════════════════════════
 
-Library           RPA.Database
+Library           DatabaseLibrary
 Library           Collections
 Library           DateTime
 Library           String
@@ -41,12 +41,12 @@ Library           EmailLibrary.py    smtp_server=smtp.gmail.com    smtp_port=587
 
 *** Variables ***
 # ── Database ──────────────────────────────────────────────────────────────────
-${DB_PATH}        ${EXECDIR}${/}..${/}web_app${/}db.sqlite3
+${DB_PATH}        ${CURDIR}${/}..${/}web_app${/}db.sqlite3
 ${DB_MODULE}      sqlite3
 
 # ── Report Config ─────────────────────────────────────────────────────────────
 ${HOD_THRESHOLD}          ${75.0}
-${REPORT_OUTPUT_DIR}      ${EXECDIR}${/}reports
+${REPORT_OUTPUT_DIR}      ${CURDIR}${/}reports
 
 # ── Email Credentials (injected via --variable flags from Django view) ─────────
 ${GMAIL_USER}     CONFIGURE_VIA_DASHBOARD
@@ -74,7 +74,7 @@ Generate And Email HOD Attendance Report
     Print Banner    BOT 2 — HOD PDF REPORT    STARTED
 
     # ── Step 1: DB Connection ───────────────────────────────────────
-    Connect To Database
+    Connect To Application Database
 
     # ── Step 2 & 3: Fetch low-attendance students ───────────────────
     ${low_students}=    Fetch Students Below Threshold
@@ -85,7 +85,7 @@ Generate And Email HOD Attendance Report
     IF    ${count} == 0
         Log To Console    ✅ All students meet the attendance threshold — no PDF needed.
         Write Bot Log    No students below threshold. Report not generated.    ${0}    ${EMPTY}
-        RETURN
+        Pass Execution    No students below threshold.
     END
 
     # ── Step 4: Generate PDF ────────────────────────────────────────
@@ -110,11 +110,9 @@ Generate And Email HOD Attendance Report
 
 *** Keywords ***
 # ══════════════════════════════════════════════════════════════════
-Connect To Database
-    Log To Console    🗄  Connecting to SQLite: ${DB_PATH}
-    Connect To Database Using Custom Params
-    ...    ${DB_MODULE}
-    ...    database="${DB_PATH}"
+Connect To Application Database
+    Log To Console    🗄 Connecting to SQLite: ${DB_PATH}
+    Connect To Database    ${DB_MODULE}    ${DB_PATH}
     Log To Console    ✅ Database connected.
 
 
@@ -129,7 +127,7 @@ Fetch Students Below Threshold
     ...    (name, enrollment_number, department, year, parent_email, pct)
     ...    Only students whose computed attendance < HOD_THRESHOLD.
 
-    ${result}=    Query
+    ${sql}=    Catenate    SEPARATOR=\n
     ...    SELECT
     ...        s.name,
     ...        s.enrollment_number,
@@ -160,6 +158,7 @@ Fetch Students Below Threshold
     ...        (CAST(present.cnt AS REAL) / CAST(countable.cnt AS REAL) * 100) < ${HOD_THRESHOLD}
     ...    ORDER BY attendance_pct ASC
 
+    ${result}=    Query    ${sql}
     RETURN    ${result}
 
 
@@ -284,12 +283,13 @@ Write Bot Log
     ${now}=    Get Current Date    result_format=%Y-%m-%d %H:%M:%S
     ${status}=    Set Variable If    '${errors}' == '${EMPTY}'    success    partial
     TRY
-        Execute Sql String
+        ${sql_log}=    Catenate    SEPARATOR=\n
         ...    INSERT INTO core_rpabotlog
         ...        (bot_name, status, started_at, finished_at, summary, records_processed, errors, triggered_by_id)
         ...    VALUES
         ...        ('${BOT_NAME}', '${status}', '${now}', '${now}',
         ...         '${summary}', ${records}, '${errors}', NULL)
+        Execute Sql String    ${sql_log}
         Log To Console    📝 Audit log written.
     EXCEPT    AS    ${err}
         Log To Console    ⚠️ Could not write audit log: ${err}
@@ -298,6 +298,7 @@ Write Bot Log
 
 Print Banner
     [Arguments]    ${title}    ${state}
-    Log To Console    \n╔══════════════════════════════════════════════════════╗
-    Log To Console    ║  ${title} — ${state}
-    Log To Console    ╚══════════════════════════════════════════════════════╝
+    Log To Console    \n======================================================
+    Log To Console    [${title} -- ${state}]
+    Log To Console    ======================================================
+

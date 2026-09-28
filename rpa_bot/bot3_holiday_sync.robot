@@ -29,7 +29,7 @@ Documentation
 ...
 ...    ══════════════════════════════════════════════════════════════════
 
-Library           RPA.Database
+Library           DatabaseLibrary
 Library           RPA.Excel.Files
 Library           Collections
 Library           DateTime
@@ -39,9 +39,9 @@ Library           OperatingSystem
 
 *** Variables ***
 # ── Paths ─────────────────────────────────────────────────────────────────────
-${DB_PATH}            ${EXECDIR}${/}..${/}web_app${/}db.sqlite3
+${DB_PATH}            ${CURDIR}${/}..${/}web_app${/}db.sqlite3
 ${DB_MODULE}          sqlite3
-${CALENDAR_PATH}      ${EXECDIR}${/}..${/}academic_calendar.xlsx
+${CALENDAR_PATH}      ${CURDIR}${/}..${/}academic_calendar.xlsx
 
 # ── Excel Sheet Config ────────────────────────────────────────────────────────
 ${SHEET_NAME}         Holidays
@@ -69,7 +69,7 @@ Sync Academic Calendar Holidays
     ...    msg=academic_calendar.xlsx not found at ${CALENDAR_PATH}. Please place the file and re-run.
 
     # Step 1: Connect to SQLite DB
-    Connect To Database
+    Connect To Application Database
 
     # Step 2: Read Excel holidays
     ${holidays}=    Read Holiday Excel
@@ -105,11 +105,9 @@ Sync Academic Calendar Holidays
 
 *** Keywords ***
 # ══════════════════════════════════════════════════════════════════
-Connect To Database
-    Log To Console    🗄  Connecting to SQLite: ${DB_PATH}
-    Connect To Database Using Custom Params
-    ...    ${DB_MODULE}
-    ...    database="${DB_PATH}"
+Connect To Application Database
+    Log To Console    🗄 Connecting to SQLite: ${DB_PATH}
+    Connect To Database    ${DB_MODULE}    ${DB_PATH}
     Log To Console    ✅ DB connected.
 
 
@@ -179,11 +177,12 @@ Upsert Holiday Row
 
     TRY
         # INSERT OR REPLACE mirrors Django's HolidayCalendar.objects.update_or_create
-        Execute Sql String
+        ${sql_ins}=    Catenate    SEPARATOR=\n
         ...    INSERT OR REPLACE INTO core_holidaycalendar
         ...        (date, name, holiday_type, synced_at, synced_by_bot)
         ...    VALUES
         ...        ('${date_str}', '${name}', '${clean_type}', '${now}', 1)
+        Execute Sql String    ${sql_ins}
         Log To Console    ✅ Synced: ${date_str} — ${name} (${clean_type})
         RETURN    synced
     EXCEPT    AS    ${err}
@@ -247,12 +246,13 @@ Write Bot Log
     ${now}=    Get Current Date    result_format=%Y-%m-%d %H:%M:%S
     ${status}=    Set Variable If    '${errors}' == '${EMPTY}'    success    partial
     TRY
-        Execute Sql String
+        ${sql_log}=    Catenate    SEPARATOR=\n
         ...    INSERT INTO core_rpabotlog
         ...        (bot_name, status, started_at, finished_at, summary, records_processed, errors, triggered_by_id)
         ...    VALUES
         ...        ('${BOT_NAME}', '${status}', '${now}', '${now}',
         ...         '${summary}', ${records}, '${errors}', NULL)
+        Execute Sql String    ${sql_log}
         Log To Console    📝 Audit log written.
     EXCEPT    AS    ${err}
         Log To Console    ⚠️ Could not write audit log: ${err}
@@ -261,6 +261,6 @@ Write Bot Log
 
 Print Banner
     [Arguments]    ${title}    ${state}
-    Log To Console    \n╔══════════════════════════════════════════════════════╗
-    Log To Console    ║  ${title} — ${state}
-    Log To Console    ╚══════════════════════════════════════════════════════╝
+    Log To Console    \n======================================================
+    Log To Console    [${title} -- ${state}]
+    Log To Console    ======================================================

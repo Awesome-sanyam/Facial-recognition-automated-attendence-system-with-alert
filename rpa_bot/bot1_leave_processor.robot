@@ -30,7 +30,7 @@ Documentation
 ...    ROBOT FRAMEWORK VERSION: 7.x  (rpaframework)
 ...    ══════════════════════════════════════════════════════════════════
 
-Library           RPA.Database
+Library           DatabaseLibrary
 Library           Collections
 Library           DateTime
 Library           String
@@ -41,7 +41,7 @@ Library           OperatingSystem
 # ── Database Connection ────────────────────────────────────────────────────────
 # Path to the Django project's SQLite database file.
 # Override via CLI: robot --variable DB_PATH:/path/to/db.sqlite3 ...
-${DB_PATH}        ${EXECDIR}${/}..${/}web_app${/}db.sqlite3
+${DB_PATH}        ${CURDIR}${/}..${/}web_app${/}db.sqlite3
 ${DB_MODULE}      sqlite3
 
 # ── Policy Thresholds ─────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ Auto Process Pending Leave Applications
     Print Banner    BOT 1 — AUTO-LEAVE PROCESSOR    STARTED
 
     # Step 1: Connect to the database
-    Connect To Database
+    Connect To Application Database
 
     # Step 2: Fetch all pending applications
     ${pending_leaves}=    Fetch Pending Leave Applications
@@ -108,15 +108,13 @@ Auto Process Pending Leave Applications
 
 *** Keywords ***
 # ══════════════════════════════════════════════════════════════════
-# KEYWORD: Connect To Database
+# KEYWORD: Connect To Application Database
 # Establishes a connection to Django's SQLite database file.
 # ══════════════════════════════════════════════════════════════════
-Connect To Database
+Connect To Application Database
     [Documentation]    Opens a connection to the Django SQLite DB.
-    Log To Console    🗄  Connecting to SQLite: ${DB_PATH}
-    Connect To Database Using Custom Params
-    ...    ${DB_MODULE}
-    ...    database="${DB_PATH}"
+    Log To Console    🗄 Connecting to SQLite: ${DB_PATH}
+    Connect To Database    ${DB_MODULE}    ${DB_PATH}
     Log To Console    ✅ Database connected.
 
 
@@ -126,11 +124,12 @@ Connect To Database
 # ══════════════════════════════════════════════════════════════════
 Fetch Pending Leave Applications
     [Documentation]    SELECT all LeaveApplication rows with status='Pending'.
-    ${result}=    Query
+    ${sql}=    Catenate    SEPARATOR=\n
     ...    SELECT id, student_id, date_requested, reason
     ...    FROM core_leaveapplication
     ...    WHERE status = 'Pending'
     ...    ORDER BY date_requested ASC
+    ${result}=    Query    ${sql}
     RETURN    ${result}
 
 
@@ -144,21 +143,23 @@ Get Student Attendance Percentage
     [Arguments]    ${student_id}
 
     # Count total countable records (exclude 'Excused' from denominator)
-    ${countable_result}=    Query
+    ${sql_cnt}=    Catenate    SEPARATOR=\n
     ...    SELECT COUNT(*) FROM core_attendancerecord
     ...    WHERE student_id = ${student_id} AND status != 'Excused'
+    ${countable_result}=    Query    ${sql_cnt}
 
     ${total_countable}=    Set Variable    ${countable_result[0][0]}
 
     IF    ${total_countable} == 0
-        Log To Console    ℹ️  Student ${student_id} has no countable attendance records.
+        Log To Console    ℹ️ Student ${student_id} has no countable attendance records.
         RETURN    ${100.0}
     END
 
     # Count present records
-    ${present_result}=    Query
+    ${sql_pres}=    Catenate    SEPARATOR=\n
     ...    SELECT COUNT(*) FROM core_attendancerecord
     ...    WHERE student_id = ${student_id} AND status = 'Present'
+    ${present_result}=    Query    ${sql_pres}
 
     ${present_count}=    Set Variable    ${present_result[0][0]}
 
@@ -243,19 +244,21 @@ Approve Leave In Database
     ${now}=    Get Current Date    result_format=%Y-%m-%d %H:%M:%S
 
     # Update the leave application status
-    Execute Sql String
+    ${sql_upd}=    Catenate    SEPARATOR=\n
     ...    UPDATE core_leaveapplication
     ...    SET status = 'Approved',
     ...        reviewed_at = '${now}'
     ...    WHERE id = ${leave_id}
+    Execute Sql String    ${sql_upd}
 
     # Create or update the attendance record as 'Excused'
     # Django's unique_together = (student, date) — use INSERT OR REPLACE
-    Execute Sql String
+    ${sql_ins}=    Catenate    SEPARATOR=\n
     ...    INSERT OR REPLACE INTO core_attendancerecord
     ...        (student_id, date, time, status)
     ...    VALUES
     ...        (${student_id}, '${leave_date}', '00:00:00', 'Excused')
+    Execute Sql String    ${sql_ins}
 
     Log To Console    💾 DB Updated — Leave ${leave_id}: Approved | Attendance: Excused
 
@@ -271,12 +274,13 @@ Write Bot Log
     ${now}=    Get Current Date    result_format=%Y-%m-%d %H:%M:%S
     ${status}=    Set Variable If    '${errors}' == '${EMPTY}'    success    partial
 
-    Execute Sql String
+    ${sql_log}=    Catenate    SEPARATOR=\n
     ...    INSERT INTO core_rpabotlog
     ...        (bot_name, status, started_at, finished_at, summary, records_processed, errors, triggered_by_id)
     ...    VALUES
     ...        ('${BOT_NAME}', '${status}', '${now}', '${now}',
     ...         '${summary}', ${records}, '${errors}', NULL)
+    Execute Sql String    ${sql_log}
 
     Log To Console    📝 Audit log written to RPABotLog.
 
@@ -287,6 +291,7 @@ Write Bot Log
 # ══════════════════════════════════════════════════════════════════
 Print Banner
     [Arguments]    ${title}    ${state}
-    Log To Console    \n╔══════════════════════════════════════════════════════╗
-    Log To Console    ║  ${title} — ${state}
-    Log To Console    ╚══════════════════════════════════════════════════════╝
+    Log To Console    \n======================================================
+    Log To Console    [${title} -- ${state}]
+    Log To Console    ======================================================
+

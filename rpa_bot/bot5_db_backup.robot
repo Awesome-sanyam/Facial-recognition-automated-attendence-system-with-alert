@@ -29,7 +29,7 @@ Documentation
 ...
 ...    ══════════════════════════════════════════════════════════════════
 
-Library           RPA.Database
+Library           DatabaseLibrary
 Library           Collections
 Library           DateTime
 Library           String
@@ -41,7 +41,7 @@ Library           EmailLibrary.py    smtp_server=smtp.gmail.com    smtp_port=587
 # ── Database Config ───────────────────────────────────────────────────────────
 # DB_TYPE: 'sqlite' or 'postgres'
 ${DB_TYPE}            sqlite
-${DB_PATH}            ${EXECDIR}${/}..${/}web_app${/}db.sqlite3
+${DB_PATH}            ${CURDIR}${/}..${/}web_app${/}db.sqlite3
 ${DB_MODULE}          sqlite3
 
 # ── PostgreSQL Config (used only if DB_TYPE=postgres) ─────────────────────────
@@ -52,7 +52,7 @@ ${PG_USER}            postgres
 ${PG_PASS}            CONFIGURE_VIA_DASHBOARD
 
 # ── Backup Config ─────────────────────────────────────────────────────────────
-${BACKUP_DIR}         ${EXECDIR}${/}..${/}backups
+${BACKUP_DIR}         ${CURDIR}${/}..${/}backups
 
 # ── Email Credentials ─────────────────────────────────────────────────────────
 ${GMAIL_USER}         CONFIGURE_VIA_DASHBOARD
@@ -80,14 +80,22 @@ Nightly Database Backup And Health Report
     ${backup_path}=    Create Database Backup
 
     # Step 2: Connect to DB and collect health metrics
-    Connect To Database
+    Connect To Application Database
     ${metrics}=    Collect Health Metrics    ${backup_path}
-    Disconnect From Database
 
     # Step 3: Email IT health report
-    Authorize    account=${GMAIL_USER}    password=${GMAIL_PASS}
-    Send IT Health Report    ${metrics}
-    Close Connection
+    IF    '${GMAIL_USER}' != 'CONFIGURE_VIA_DASHBOARD' and '${GMAIL_USER}' != '${EMPTY}'
+        TRY
+            Authorize    account=${GMAIL_USER}    password=${GMAIL_PASS}
+            Send IT Health Report    ${metrics}
+            Close Connection
+            Log To Console    ✅ IT health report emailed to: ${IT_ADMIN_EMAIL}
+        EXCEPT    AS    ${err}
+            Log To Console    ⚠️ Could not email IT health report: ${err}
+        END
+    ELSE
+        Log To Console    ℹ️ Gmail credentials not configured — skipping email dispatch.
+    END
 
     # Step 4: Audit log
     ${summary}=    Set Variable
@@ -97,19 +105,17 @@ Nightly Database Backup And Health Report
     Print Banner    BOT 5 — NIGHTLY DB BACKUP    FINISHED
     Log To Console    ✅ ${summary}
 
+    [Teardown]    Disconnect From Database
+
 
 *** Keywords ***
 # ══════════════════════════════════════════════════════════════════
-Connect To Database
-    Log To Console    🗄  Connecting to ${DB_TYPE} DB...
+Connect To Application Database
+    Log To Console    🗄 Connecting to ${DB_TYPE} DB...
     IF    '${DB_TYPE}' == 'sqlite'
-        Connect To Database Using Custom Params
-        ...    ${DB_MODULE}
-        ...    database="${DB_PATH}"
+        Connect To Database    ${DB_MODULE}    ${DB_PATH}
     ELSE
-        Connect To Database Using Custom Params
-        ...    psycopg2
-        ...    database='${PG_NAME}', user='${PG_USER}', password='${PG_PASS}', host='${PG_HOST}', port='${PG_PORT}'
+        Connect To Database    psycopg2    ${PG_NAME}    ${PG_USER}    ${PG_PASS}    ${PG_HOST}    ${PG_PORT}
     END
     Log To Console    ✅ DB connected.
 
@@ -136,14 +142,11 @@ Create Database Backup
 
         Log To Console    💾 Creating SQLite backup: ${backup_path}
 
-        # Use Python's shutil for a safe binary copy
-        ${py_result}=    Run
-        ...    python -c "import shutil; shutil.copy2(r'${DB_PATH}', r'${backup_path}'); print('OK')"
-
-        Should Contain    ${py_result}    OK
-        ...    msg=SQLite backup failed. shutil.copy2 returned: ${py_result}
-
+        # Use native OperatingSystem keyword for safe binary copy
+        Copy File    ${DB_PATH}    ${backup_path}
+        File Should Exist    ${backup_path}    msg=SQLite backup file was not created.
         Log To Console    ✅ SQLite backup created: ${backup_path}
+
 
     ELSE
         # PostgreSQL: pg_dump to a .sql file
@@ -197,7 +200,7 @@ Collect Health Metrics
     ${pending_count}=    Set Variable    ${pending_result[0][0]}
 
     # Count students below 75%
-    ${low_att_result}=    Query
+    ${sql_low}=    Catenate    SEPARATOR=\n
     ...    SELECT COUNT(*) FROM (
     ...        SELECT s.id FROM core_student s
     ...        LEFT JOIN (
@@ -210,17 +213,17 @@ Collect Health Metrics
     ...        ) p ON p.student_id = s.id
     ...        WHERE c.cnt > 0 AND (CAST(COALESCE(p.cnt,0) AS REAL)/CAST(c.cnt AS REAL)*100) < 75
     ...    )
+    ${low_att_result}=    Query    ${sql_low}
     ${low_count}=    Set Variable    ${low_att_result[0][0]}
 
     # Get backup file size (in KB)
-    ${size_result}=    Run
-    ...    python -c "import os; print(round(os.path.getsize(r'${backup_path}') / 1024, 2))"
-    ${backup_size_kb}=    Strip String    ${size_result}
+    ${backup_size_bytes}=    Get File Size    ${backup_path}
+    ${backup_size_kb}=    Evaluate    round(${backup_size_bytes} / 1024, 2)
 
     # Get main DB file size (in KB)
-    ${db_size_result}=    Run
-    ...    python -c "import os; print(round(os.path.getsize(r'${DB_PATH}') / 1024, 2))"
-    ${db_size_kb}=    Strip String    ${db_size_result}
+    ${db_size_bytes}=    Get File Size    ${DB_PATH}
+    ${db_size_kb}=    Evaluate    round(${db_size_bytes} / 1024, 2)
+
 
     ${now}=    Get Current Date    result_format=%Y-%m-%d %H:%M:%S
 
@@ -302,12 +305,13 @@ Write Bot Log
     ${now}=    Get Current Date    result_format=%Y-%m-%d %H:%M:%S
     ${status}=    Set Variable If    '${errors}' == '${EMPTY}'    success    partial
     TRY
-        Execute Sql String
+        ${sql_log}=    Catenate    SEPARATOR=\n
         ...    INSERT INTO core_rpabotlog
         ...        (bot_name, status, started_at, finished_at, summary, records_processed, errors, triggered_by_id)
         ...    VALUES
         ...        ('${BOT_NAME}', '${status}', '${now}', '${now}',
         ...         '${summary}', ${records}, '${errors}', NULL)
+        Execute Sql String    ${sql_log}
         Log To Console    📝 Audit log written.
     EXCEPT    AS    ${err}
         Log To Console    ⚠️ Could not write audit log: ${err}
@@ -316,6 +320,6 @@ Write Bot Log
 
 Print Banner
     [Arguments]    ${title}    ${state}
-    Log To Console    \n╔══════════════════════════════════════════════════════╗
-    Log To Console    ║  ${title} — ${state}
-    Log To Console    ╚══════════════════════════════════════════════════════╝
+    Log To Console    \n======================================================
+    Log To Console    [${title} -- ${state}]
+    Log To Console    ======================================================

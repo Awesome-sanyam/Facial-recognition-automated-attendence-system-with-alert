@@ -29,7 +29,7 @@ Documentation
 ...
 ...    ══════════════════════════════════════════════════════════════════
 
-Library           RPA.Database
+Library           DatabaseLibrary
 Library           Collections
 Library           DateTime
 Library           String
@@ -39,7 +39,7 @@ Library           EmailLibrary.py    smtp_server=smtp.gmail.com    smtp_port=587
 
 *** Variables ***
 # ── Database ──────────────────────────────────────────────────────────────────
-${DB_PATH}            ${EXECDIR}${/}..${/}web_app${/}db.sqlite3
+${DB_PATH}            ${CURDIR}${/}..${/}web_app${/}db.sqlite3
 ${DB_MODULE}          sqlite3
 
 # ── PTM Escalation Config ─────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ Send PTM Escalation Invites
     Print Banner    BOT 4 — PTM ESCALATION    STARTED
 
     # Step 1: Connect to DB
-    Connect To Database
+    Connect To Application Database
 
     # Step 2: Fetch students below PTM threshold
     ${critical_students}=    Fetch Students Below PTM Threshold
@@ -88,7 +88,7 @@ Send PTM Escalation Invites
     IF    ${count} == 0
         Log To Console    ✅ No students below ${PTM_THRESHOLD}% — PTM escalation not required.
         Write Bot Log    No students below PTM threshold. No emails sent.    ${0}    ${EMPTY}
-        RETURN
+        Pass Execution    No students below PTM threshold.
     END
 
     # Step 3: Authorise Gmail SMTP
@@ -126,11 +126,9 @@ Send PTM Escalation Invites
 
 *** Keywords ***
 # ══════════════════════════════════════════════════════════════════
-Connect To Database
-    Log To Console    🗄  Connecting to SQLite: ${DB_PATH}
-    Connect To Database Using Custom Params
-    ...    ${DB_MODULE}
-    ...    database="${DB_PATH}"
+Connect To Application Database
+    Log To Console    🗄 Connecting to SQLite: ${DB_PATH}
+    Connect To Database    ${DB_MODULE}    ${DB_PATH}
     Log To Console    ✅ DB connected.
 
 
@@ -142,7 +140,7 @@ Connect To Database
 # ══════════════════════════════════════════════════════════════════
 Fetch Students Below PTM Threshold
     [Documentation]    Returns students with computed attendance < ${PTM_THRESHOLD}%.
-    ${result}=    Query
+    ${sql}=    Catenate    SEPARATOR=\n
     ...    SELECT
     ...        s.name,
     ...        s.enrollment_number,
@@ -174,6 +172,7 @@ Fetch Students Below PTM Threshold
     ...        (CAST(COALESCE(present.cnt, 0) AS REAL) / CAST(countable.cnt AS REAL) * 100) < ${PTM_THRESHOLD}
     ...    ORDER BY attendance_pct ASC
 
+    ${result}=    Query    ${sql}
     RETURN    ${result}
 
 
@@ -252,12 +251,13 @@ Write Bot Log
     ${now}=    Get Current Date    result_format=%Y-%m-%d %H:%M:%S
     ${status}=    Set Variable If    '${errors}' == '${EMPTY}'    success    partial
     TRY
-        Execute Sql String
+        ${sql_log}=    Catenate    SEPARATOR=\n
         ...    INSERT INTO core_rpabotlog
         ...        (bot_name, status, started_at, finished_at, summary, records_processed, errors, triggered_by_id)
         ...    VALUES
         ...        ('${BOT_NAME}', '${status}', '${now}', '${now}',
         ...         '${summary}', ${records}, '${errors}', NULL)
+        Execute Sql String    ${sql_log}
         Log To Console    📝 Audit log written.
     EXCEPT    AS    ${err}
         Log To Console    ⚠️ Could not write audit log: ${err}
@@ -266,6 +266,6 @@ Write Bot Log
 
 Print Banner
     [Arguments]    ${title}    ${state}
-    Log To Console    \n╔══════════════════════════════════════════════════════╗
-    Log To Console    ║  ${title} — ${state}
-    Log To Console    ╚══════════════════════════════════════════════════════╝
+    Log To Console    \n======================================================
+    Log To Console    [${title} -- ${state}]
+    Log To Console    ======================================================

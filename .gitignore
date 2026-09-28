@@ -29,6 +29,8 @@ rpa_bot/output.xml
 rpa_bot/report.html
 rpa_bot/selenium-screenshot-*.png
 rpa_bot/__pycache__/
+rpa_bot/reports/
+backups/
 
 # ─── Face Recognition data ────────────────────────
 face_recognition/face_data/
