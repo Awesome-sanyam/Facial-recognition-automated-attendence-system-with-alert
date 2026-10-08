@@ -45,6 +45,34 @@ else
     DJANGO_PID=""
 fi
 
+# Extract credentials for Bots 0, 2, 4, 5 to enable complete end-to-end execution
+CONFIG_FILE=$(mktemp /tmp/rpa_suite_config.XXXXXX.json)
+python web_app/manage.py shell -c "
+import json
+from core.models import AlertConfiguration
+
+configs = AlertConfiguration.objects.filter(gmail_address__isnull=False).exclude(gmail_address='')
+if configs.exists():
+    config = configs.first()
+    data = {
+        'GMAIL_USER': config.gmail_address or '',
+        'GMAIL_PASS': config.get_decrypted_gmail_password() or '',
+        'DEAN_EMAIL': config.dean_email or config.gmail_address or '',
+        'HOD_THRESHOLD': str(float(config.hod_report_threshold or 75.0)),
+        'PTM_THRESHOLD': '50.0',
+    }
+else:
+    data = {'GMAIL_USER': '', 'GMAIL_PASS': '', 'DEAN_EMAIL': '', 'HOD_THRESHOLD': '75.0', 'PTM_THRESHOLD': '50.0'}
+with open('$CONFIG_FILE', 'w') as f:
+    json.dump(data, f)
+"
+GMAIL_USER=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE'))['GMAIL_USER'])" 2>/dev/null || echo "")
+GMAIL_PASS=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE'))['GMAIL_PASS'])" 2>/dev/null || echo "")
+DEAN_EMAIL=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE'))['DEAN_EMAIL'])" 2>/dev/null || echo "")
+HOD_THRESHOLD=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE'))['HOD_THRESHOLD'])" 2>/dev/null || echo "75.0")
+PTM_THRESHOLD=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE'))['PTM_THRESHOLD'])" 2>/dev/null || echo "50.0")
+rm -f "$CONFIG_FILE"
+
 PASSED=0
 FAILED=0
 declare -a BOT_STATUSES
@@ -64,7 +92,7 @@ run_bot() {
     mkdir -p "$out_dir"
 
     set +e
-    if [ -n "$extra_args" ]; then
+    if [ ${#extra_args[@]} -gt 0 ]; then
         robot "${extra_args[@]}" --outputdir "$out_dir" "$bot_file"
     else
         robot --outputdir "$out_dir" "$bot_file"
@@ -105,16 +133,26 @@ echo ""
 run_bot "bot1" "Auto-Leave Processor Bot (>80% Attendance)" "rpa_bot/bot1_leave_processor.robot"
 
 # 3. Bot 2 — Monthly HOD Attendance Risk PDF Report
-run_bot "bot2" "Monthly HOD PDF Attendance Report Bot (<75% Threshold)" "rpa_bot/bot2_hod_report.robot"
+run_bot "bot2" "Monthly HOD PDF Attendance Report Bot (<75% Threshold)" "rpa_bot/bot2_hod_report.robot" \
+    --variable GMAIL_USER:"$GMAIL_USER" \
+    --variable GMAIL_PASS:"$GMAIL_PASS" \
+    --variable DEAN_EMAIL:"$DEAN_EMAIL" \
+    --variable HOD_THRESHOLD:"$HOD_THRESHOLD"
 
 # 4. Bot 3 — Holiday Sync
 run_bot "bot3" "Academic Calendar Excel Holiday Sync Bot" "rpa_bot/bot3_holiday_sync.robot"
 
 # 5. Bot 4 — PTM Escalation
-run_bot "bot4" "PTM Escalation Alerts Bot (<50% Critical Students)" "rpa_bot/bot4_ptm_escalation.robot"
+run_bot "bot4" "PTM Escalation Alerts Bot (<50% Critical Students)" "rpa_bot/bot4_ptm_escalation.robot" \
+    --variable GMAIL_USER:"$GMAIL_USER" \
+    --variable GMAIL_PASS:"$GMAIL_PASS" \
+    --variable PTM_THRESHOLD:"$PTM_THRESHOLD"
 
 # 6. Bot 5 — Nightly DB Backup & IT Health
-run_bot "bot5" "Nightly Database Backup & IT Health Bot" "rpa_bot/bot5_db_backup.robot"
+run_bot "bot5" "Nightly Database Backup & IT Health Bot" "rpa_bot/bot5_db_backup.robot" \
+    --variable GMAIL_USER:"$GMAIL_USER" \
+    --variable GMAIL_PASS:"$GMAIL_PASS" \
+    --variable IT_ADMIN_EMAIL:"$DEAN_EMAIL"
 
 # Cleanup background Django server if we started it
 if [ -n "$DJANGO_PID" ]; then

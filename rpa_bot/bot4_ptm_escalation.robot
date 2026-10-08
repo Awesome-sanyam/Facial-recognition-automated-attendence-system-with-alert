@@ -91,29 +91,37 @@ Send PTM Escalation Invites
         Pass Execution    No students below PTM threshold.
     END
 
-    # Step 3: Authorise Gmail SMTP
-    Log To Console    📧 Connecting to Gmail SMTP as: ${GMAIL_USER}
-    Authorize    account=${GMAIL_USER}    password=${GMAIL_PASS}
-    Log To Console    ✅ Gmail SMTP authorised.
+    # Step 3: Authorise Gmail SMTP if configured
+    IF    '${GMAIL_USER}' != 'CONFIGURE_VIA_DASHBOARD' and '${GMAIL_USER}' != '${EMPTY}'
+        Log To Console    📧 Connecting to Gmail SMTP as: ${GMAIL_USER}
+        Authorize    account=${GMAIL_USER}    password=${GMAIL_PASS}
+        Log To Console    ✅ Gmail SMTP authorised.
 
-    # Step 4: Send PTM invite to each critical student's parent
-    ${sent_count}=    Set Variable    ${0}
-    ${errors}=        Set Variable    ${EMPTY}
+        # Step 4: Send PTM invite to each critical student's parent
+        ${sent_count}=    Set Variable    ${0}
+        ${errors}=        Set Variable    ${EMPTY}
 
-    FOR    ${student}    IN    @{critical_students}
-        ${result}=    Send PTM Invite    ${student}
-        IF    '${result}' == 'sent'
-            ${sent_count}=    Evaluate    ${sent_count} + 1
-        ELSE
-            ${errors}=    Set Variable    ${errors} | Failed: ${student[0]}
+        FOR    ${student}    IN    @{critical_students}
+            ${result}=    Send PTM Invite    ${student}
+            IF    '${result}' == 'sent'
+                ${sent_count}=    Evaluate    ${sent_count} + 1
+            ELSE
+                ${errors}=    Set Variable    ${errors} | Failed: ${student[0]}
+            END
+            # Brief pause between emails to avoid SMTP rate limiting
+            Sleep    0.5s
         END
-        # Brief pause between emails to avoid SMTP rate limiting
-        Sleep    0.5s
+        ${summary}=    Set Variable
+        ...    PTM Escalation: ${count} critical students found. ${sent_count} PTM invite(s) emailed to parents.
+    ELSE
+        Log To Console    ℹ️ Gmail credentials not configured — skipping PTM email dispatch.
+        ${sent_count}=    Set Variable    ${0}
+        ${errors}=        Set Variable    ${EMPTY}
+        ${summary}=    Set Variable
+        ...    PTM Escalation: ${count} critical students flagged. Email dispatch skipped (unconfigured).
     END
 
     # Step 5: Audit log
-    ${summary}=    Set Variable
-    ...    PTM Escalation: ${count} critical students found. ${sent_count} PTM invite(s) emailed to parents.
     Write Bot Log    ${summary}    ${sent_count}    ${errors}
 
     Print Banner    BOT 4 — PTM ESCALATION    FINISHED
@@ -129,7 +137,9 @@ Send PTM Escalation Invites
 Connect To Application Database
     Log To Console    🗄 Connecting to SQLite: ${DB_PATH}
     Connect To Database    ${DB_MODULE}    ${DB_PATH}
-    Log To Console    ✅ DB connected.
+    Execute Sql String    PRAGMA journal_mode=WAL
+    Execute Sql String    PRAGMA busy_timeout=5000
+    Log To Console    ✅ DB connected — WAL mode active.
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -258,6 +268,14 @@ Write Bot Log
         ...        ('${BOT_NAME}', '${status}', '${now}', '${now}',
         ...         '${summary}', ${records}, '${errors}', NULL)
         Execute Sql String    ${sql_log}
+
+        # Granular log for Live Automation Hub
+        ${act_sql}=    Catenate    SEPARATOR=\n
+        ...    INSERT INTO core_botactivitylog
+        ...        (bot_name, action, target, timestamp, status, detail)
+        ...    VALUES
+        ...        ('${BOT_NAME}', '${summary}', 'core_student', '${now}', '${status}', 'PTM Escalation via Robot Framework')
+        Execute Sql String    ${act_sql}
         Log To Console    📝 Audit log written.
     EXCEPT    AS    ${err}
         Log To Console    ⚠️ Could not write audit log: ${err}

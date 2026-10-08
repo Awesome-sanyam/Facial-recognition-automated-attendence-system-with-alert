@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Automation Hub — Attendance System</title>
+  <meta name="description" content="Real-time dashboard showing all 5 RPA bot controls, live logs, and automation metrics.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>{% include "core/_theme_css.html" %}</style>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primary);min-height:100vh}
+    nav{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:60px;background:var(--nav-bg);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+    .nav-left{display:flex;align-items:center;gap:1rem}
+    .nav-brand{font-size:.95rem;font-weight:800;letter-spacing:-.02em}
+    .nav-badge{font-size:.65rem;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:100px;padding:3px 10px;text-transform:uppercase;letter-spacing:.08em;animation:badge-glow 2s infinite}
+    @keyframes badge-glow{0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,.4)}50%{box-shadow:0 0 0 6px rgba(99,102,241,0)}}
+    .nav-right{display:flex;align-items:center;gap:.75rem}
+    .nav-user{font-size:.82rem;color:var(--text-muted)}
+    .nav-user strong{color:var(--text-secondary)}
+    .btn-sm{background:var(--bg-input);border:1px solid var(--border);color:var(--text-secondary);border-radius:8px;padding:.4rem .85rem;font-size:.78rem;font-weight:600;font-family:'Inter',sans-serif;text-decoration:none;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:5px}
+    .btn-sm:hover{border-color:var(--border-focus);color:var(--text-primary)}
+    main{max-width:1500px;margin:0 auto;padding:1.75rem 1.5rem 3rem}
+    .page-header{margin-bottom:1.75rem;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+    .page-header h1{font-size:1.65rem;font-weight:900;letter-spacing:-.03em}
+    .page-header p{color:var(--text-muted);font-size:.88rem;margin-top:.35rem}
+    .live-indicator{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;color:#22c55e;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.25);border-radius:100px;padding:4px 12px}
+    .live-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 1.5s infinite}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
+    .metrics-strip{display:grid;grid-template-columns:repeat(8,1fr);gap:.75rem;margin-bottom:1.75rem}
+    .metric-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1rem 1.1rem;position:relative;overflow:hidden;transition:transform .2s}
+    .metric-card:hover{transform:translateY(-2px)}
+    .metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0}
+    .mc-purple::before{background:linear-gradient(90deg,#6366f1,#8b5cf6)}
+    .mc-green::before{background:linear-gradient(90deg,#22c55e,#16a34a)}
+    .mc-blue::before{background:linear-gradient(90deg,#3b82f6,#2563eb)}
+    .mc-amber::before{background:linear-gradient(90deg,#f59e0b,#d97706)}
+    .mc-rose::before{background:linear-gradient(90deg,#f43f5e,#e11d48)}
+    .mc-teal::before{background:linear-gradient(90deg,#14b8a6,#0d9488)}
+    .mc-orange::before{background:linear-gradient(90deg,#fb923c,#ea580c)}
+    .mc-indigo::before{background:linear-gradient(90deg,#818cf8,#6366f1)}
+    .metric-icon{font-size:1.3rem;margin-bottom:.4rem;display:block}
+    .metric-label{font-size:.6rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.25rem}
+    .metric-value{font-size:1.9rem;font-weight:900;line-height:1;letter-spacing:-.03em}
+    .metric-sub{font-size:.65rem;color:var(--text-muted);margin-top:.25rem}
+    .bot-nav{display:flex;align-items:center;margin-bottom:1.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:5px;overflow-x:auto;gap:3px}
+    .bot-tab-btn{flex:1;min-width:110px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:.75rem .5rem;border:none;background:none;color:var(--text-muted);font-family:'Inter',sans-serif;font-size:.72rem;font-weight:600;cursor:pointer;border-radius:10px;transition:all .2s;white-space:nowrap}
+    .bot-tab-btn .tab-icon{font-size:1.4rem}
+    .bot-tab-btn.active{background:var(--bg);color:var(--text-primary);box-shadow:0 1px 6px rgba(0,0,0,.3)}
+    .bot-tab-btn:hover:not(.active){color:var(--text-secondary);background:rgba(255,255,255,.04)}
+    .tab-dot{width:6px;height:6px;border-radius:50%;background:#6b7280;display:inline-block;margin-top:2px}
+    .tab-dot.s{background:#22c55e;box-shadow:0 0 5px rgba(34,197,94,.5)}
+    .tab-dot.f{background:#f43f5e}
+    .tab-dot.r{background:#3b82f6;animation:pulse 1s infinite}
+    .bot-panel{display:none}
+    .bot-panel.active{display:grid;grid-template-columns:370px 1fr;gap:1.5rem}
+    .panel-left{display:flex;flex-direction:column;gap:1.25rem}
+    .panel-right{display:flex;flex-direction:column;gap:1.25rem}
+    .hub-card{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+    .hub-card-hdr{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.25rem;border-bottom:1px solid var(--border)}
+    .hub-card-hdr h3{font-size:.88rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
+    .hub-card-body{padding:1.25rem}
+    .bot-id-hdr{padding:1.5rem;background:linear-gradient(135deg,var(--bg-card),var(--bg));border-bottom:1px solid var(--border)}
+    .bot-badge{display:inline-flex;align-items:center;gap:.5rem;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:4px 12px;border-radius:100px;margin-bottom:.75rem}
+    .bot-id-hdr h2{font-size:1.2rem;font-weight:900;letter-spacing:-.02em;margin-bottom:.4rem}
+    .bot-id-hdr p{font-size:.82rem;color:var(--text-muted);line-height:1.5}
+    .spec-list{list-style:none;padding:1.25rem;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:.6rem}
+    .spec-list li{display:flex;align-items:flex-start;gap:.6rem;font-size:.8rem;color:var(--text-secondary)}
+    .sk{color:var(--text-muted);min-width:90px;flex-shrink:0}
+    .sv{font-weight:600;color:var(--text-primary)}
+    .run-area{padding:1.25rem;display:flex;flex-direction:column;gap:.75rem}
+    .stat-row{display:flex;gap:.5rem}
+    .stat-box{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:.6rem .8rem;text-align:center}
+    .stat-val{font-size:1.2rem;font-weight:800}
+    .stat-lbl{font-size:.6rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+    .btn-run{width:100%;padding:.9rem 1.5rem;border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:.92rem;font-weight:700;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.6rem}
+    .btn-run:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.3)}
+    .btn-run:disabled{opacity:.5;cursor:not-allowed;transform:none}
+    .btn-green{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff}
+    .btn-blue{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff}
+    .btn-amber{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff}
+    .btn-rose{background:linear-gradient(135deg,#f43f5e,#e11d48);color:#fff}
+    .btn-indigo{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff}
+    .btn-run-all{display:inline-flex;align-items:center;gap:.6rem;padding:.6rem 1.4rem;border:none;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;font-family:'Inter',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s}
+    .btn-run-all:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.35)}
+    .terminal-card{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+    .term-hdr{display:flex;align-items:center;justify-content:space-between;padding:.85rem 1.25rem;border-bottom:1px solid var(--border);background:rgba(0,0,0,.15)}
+    .term-hdr h3{font-size:.88rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
+    .tdots{display:flex;gap:5px}
+    .tdots span{width:10px;height:10px;border-radius:50%}
+    .dot-r{background:#ff5f57}.dot-y{background:#febc2e}.dot-g{background:#28c840}
+    .term-body{font-family:'JetBrains Mono',monospace;font-size:.75rem;height:340px;overflow-y:auto;padding:.85rem;background:rgba(0,0,0,.2)}
+    .term-body::-webkit-scrollbar{width:4px}
+    .term-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    .log-entry{display:flex;gap:.65rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.04);animation:fadeIn .35s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+    .log-entry:last-child{border-bottom:none}
+    .log-time{color:var(--text-muted);flex-shrink:0;font-size:.68rem;padding-top:.05rem}
+    .log-action{flex:1}
+    .s-success{color:#86efac}.s-error{color:#fca5a5}.s-warning{color:#fde68a}.s-info{color:var(--text-secondary)}
+    .log-target{color:#a5b4fc;font-size:.67rem;margin-top:1px}
+    .term-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);gap:.5rem;text-align:center}
+    .term-empty span{font-size:2rem}
+    .dtable{width:100%;border-collapse:collapse}
+    .dtable th{padding:.5rem 1rem;text-align:left;font-size:.62rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border);white-space:nowrap}
+    .dtable td{padding:.7rem 1rem;font-size:.8rem;color:var(--text-secondary);border-bottom:1px solid var(--border);vertical-align:middle}
+    .dtable tr:last-child td{border-bottom:none}
+    .dtable tr:hover td{background:var(--bg-card-hover)}
+    .tdname{font-weight:700;color:var(--text-primary)}
+    .tempty{text-align:center;padding:2rem;color:var(--text-muted);font-size:.82rem}
+    .pill{display:inline-block;padding:3px 9px;border-radius:100px;font-size:.67rem;font-weight:700;white-space:nowrap}
+    .p-ok{background:rgba(34,197,94,.15);color:#22c55e}
+    .p-fail{background:rgba(244,63,94,.15);color:#f87171}
+    .p-run{background:rgba(59,130,246,.15);color:#60a5fa}
+    .p-part{background:rgba(251,146,60,.15);color:#fb923c}
+    .p-pend{background:rgba(245,158,11,.15);color:#fbbf24}
+    .p-bot{background:rgba(99,102,241,.2);color:#818cf8;border:1px solid rgba(99,102,241,.3)}
+    .p-nat{background:rgba(34,197,94,.15);color:#22c55e}
+    .p-univ{background:rgba(59,130,246,.15);color:#60a5fa}
+    .p-exam{background:rgba(244,63,94,.15);color:#f87171}
+    .p-event{background:rgba(251,146,60,.15);color:#fb923c}
+    .p-other{background:rgba(107,114,128,.15);color:#9ca3af}
+    .p-crit{background:rgba(244,63,94,.15);color:#fca5a5}
+    .p-warn{background:rgba(245,158,11,.15);color:#fbbf24}
+    .p-safe{background:rgba(34,197,94,.15);color:#22c55e}
+    .ov-grid{display:grid;grid-template-columns:1fr 380px;gap:1.5rem}
+    .boi{display:flex;align-items:center;gap:.85rem;padding:.85rem 1.25rem;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+    .boi:last-child{border-bottom:none}
+    .boi:hover{background:var(--bg-card-hover)}
+    .boi-icon{font-size:1.35rem;flex-shrink:0}
+    .boi-info{flex:1;min-width:0}
+    .boi-name{font-size:.85rem;font-weight:700;color:var(--text-primary)}
+    .boi-desc{font-size:.72rem;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .boi-rt{text-align:right;flex-shrink:0}
+    .boi-cnt{font-size:1rem;font-weight:800}
+    .boi-sub{font-size:.62rem;color:var(--text-muted)}
+    @media(max-width:1200px){.bot-panel.active{grid-template-columns:1fr}.ov-grid{grid-template-columns:1fr}.metrics-strip{grid-template-columns:repeat(4,1fr)}}
+    @media(max-width:640px){.metrics-strip{grid-template-columns:repeat(2,1fr)}.bot-tab-btn{min-width:85px;font-size:.65rem}}
+  </style>
+  <script>(function(){const t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t)})();</script>
+</head>
+<body>
+
+<nav>
+  <div class="nav-left">
+    <div class="nav-brand">🤖 Automation Hub</div>
+    <span class="nav-badge">Live</span>
+  </div>
+  <div class="nav-right">
+    <span class="nav-user">Welcome,&nbsp;<strong>{{ faculty_name }}</strong></span>
+    <a href="{% url 'faculty_dashboard' %}?tab=rpa_bots" class="btn-sm">&#8592; Dashboard</a>
+    <button class="btn-sm" onclick="toggleTheme()" id="themeBtn">&#9728; Light</button>
+    <a href="{% url 'faculty_logout' %}" class="btn-sm">Log Out</a>
+  </div>
+</nav>
+
+<main>
+
+<!-- PAGE HEADER -->
+<div class="page-header">
+  <div>
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem;">
+      <h1>Live Automation Hub</h1>
+      <span class="live-indicator"><span class="live-dot"></span> Auto-refreshing every 4s</span>
+    </div>
+    <p>5 enterprise RPA bots — click any tab to control it, view results, and watch live activity logs.</p>
+  </div>
+  <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">
+    <form method="POST" action="{% url 'run_leave_processor_bot' %}" style="display:inline;">
+      {% csrf_token %}<button type="submit" class="btn-run-all">&#9654;&#9654; Run All 5 Bots</button>
+    </form>
+  </div>
+</div>
+
+<!-- METRICS STRIP -->
+<div class="metrics-strip">
+  <div class="metric-card mc-purple"><span class="metric-icon">⚙️</span><div class="metric-label">Total Runs</div><div class="metric-value">{{ total_executions }}</div><div class="metric-sub">{{ successful_runs }} successful</div></div>
+  <div class="metric-card mc-green"><span class="metric-icon">📋</span><div class="metric-label">Auto-Approved</div><div class="metric-value">{{ leaves_auto_approved }}</div><div class="metric-sub">Leaves by Bot 1</div></div>
+  <div class="metric-card mc-blue"><span class="metric-icon">🔔</span><div class="metric-label">Actions Today</div><div class="metric-value">{{ activity_today }}</div><div class="metric-sub">Bot log entries</div></div>
+  <div class="metric-card mc-amber"><span class="metric-icon">📅</span><div class="metric-label">Holidays Synced</div><div class="metric-value">{{ holidays_synced }}</div><div class="metric-sub">Bot 3 protected</div></div>
+  <div class="metric-card mc-rose"><span class="metric-icon">🚨</span><div class="metric-label">Critical Students</div><div class="metric-value">{{ critical_count }}</div><div class="metric-sub">Below 50%</div></div>
+  <div class="metric-card mc-teal"><span class="metric-icon">👥</span><div class="metric-label">Total Students</div><div class="metric-value">{{ students_protected }}</div><div class="metric-sub">Holiday-guarded</div></div>
+  <div class="metric-card mc-orange"><span class="metric-icon">📨</span><div class="metric-label">Emails Sent</div><div class="metric-value">{{ emails_dispatched }}</div><div class="metric-sub">Automated alerts</div></div>
+  <div class="metric-card mc-indigo"><span class="metric-icon">✅</span><div class="metric-label">Success Rate</div><div class="metric-value">{% if total_executions %}{% widthratio successful_runs total_executions 100 %}%{% else %}—{% endif %}</div><div class="metric-sub">Bot reliability</div></div>
+</div>
+
+<!-- BOT NAVIGATION TABS -->
+<div class="bot-nav" role="tablist">
+  <button class="bot-tab-btn active" onclick="switchTab('overview',this)" id="tab-overview">
+    <span class="tab-icon">📊</span>Overview
+  </button>
+  <button class="bot-tab-btn" onclick="switchTab('bot1',this)" id="tab-bot1">
+    <span class="tab-icon">🤖</span>Bot 1 — Leave
+    <span class="tab-dot {% if bot_stats.leave_processor.last_run %}{% if bot_stats.leave_processor.last_run.status == 'success' %}s{% elif bot_stats.leave_processor.last_run.status == 'failed' %}f{% else %}r{% endif %}{% endif %}"></span>
+  </button>
+  <button class="bot-tab-btn" onclick="switchTab('bot2',this)" id="tab-bot2">
+    <span class="tab-icon">📄</span>Bot 2 — Report
+    <span class="tab-dot {% if bot_stats.hod_report.last_run %}{% if bot_stats.hod_report.last_run.status == 'success' %}s{% elif bot_stats.hod_report.last_run.status == 'failed' %}f{% else %}r{% endif %}{% endif %}"></span>
+  </button>
+  <button class="bot-tab-btn" onclick="switchTab('bot3',this)" id="tab-bot3">
+    <span class="tab-icon">📅</span>Bot 3 — Holiday
+    <span class="tab-dot {% if bot_stats.holiday_sync.last_run %}{% if bot_stats.holiday_sync.last_run.status == 'success' %}s{% elif bot_stats.holiday_sync.last_run.status == 'failed' %}f{% else %}r{% endif %}{% endif %}"></span>
+  </button>
+  <button class="bot-tab-btn" onclick="switchTab('bot4',this)" id="tab-bot4">
+    <span class="tab-icon">🚨</span>Bot 4 — PTM
+    <span class="tab-dot {% if bot_stats.ptm_escalation.last_run %}{% if bot_stats.ptm_escalation.last_run.status == 'success' %}s{% elif bot_stats.ptm_escalation.last_run.status == 'failed' %}f{% else %}r{% endif %}{% endif %}"></span>
+  </button>
+  <button class="bot-tab-btn" onclick="switchTab('bot5',this)" id="tab-bot5">
+    <span class="tab-icon">💾</span>Bot 5 — Backup
+    <span class="tab-dot {% if bot_stats.db_backup.last_run %}{% if bot_stats.db_backup.last_run.status == 'success' %}s{% elif bot_stats.db_backup.last_run.status == 'failed' %}f{% else %}r{% endif %}{% endif %}"></span>
+  </button>
+  <button class="bot-tab-btn" onclick="switchTab('terminal',this)" id="tab-terminal">
+    <span class="tab-icon">💻</span>Live Feed
+  </button>
+</div>
+
+<!-- ═════════════ OVERVIEW TAB ═════════════ -->
+<div class="bot-panel active" id="panel-overview" style="display:block;">
+  <div class="ov-grid">
+    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+      <div class="hub-card">
+        <div class="hub-card-hdr"><h3>🤖 All Bots — Status</h3><span style="font-size:.72rem;color:var(--text-muted);">Click a row to open that bot</span></div>
+        {% for key, stat in bot_stats.items %}
+        <div class="boi" onclick="switchBotKey('{{ key }}')">
+          <span class="boi-icon">{% if key == 'leave_processor' %}🤖{% elif key == 'hod_report' %}📄{% elif key == 'holiday_sync' %}📅{% elif key == 'ptm_escalation' %}🚨{% else %}💾{% endif %}</span>
+          <div class="boi-info">
+            <div class="boi-name">{% if key == 'leave_processor' %}Bot 1 — Auto-Leave Processor{% elif key == 'hod_report' %}Bot 2 — Monthly HOD PDF Report{% elif key == 'holiday_sync' %}Bot 3 — Holiday Calendar Sync{% elif key == 'ptm_escalation' %}Bot 4 — PTM Escalation{% else %}Bot 5 — Nightly DB Backup{% endif %}</div>
+            <div class="boi-desc">{% if stat.last_run %}Last run: {{ stat.last_run.started_at|date:"d M Y, H:i" }} — <span class="pill {% if stat.last_run.status == 'success' %}p-ok{% elif stat.last_run.status == 'failed' %}p-fail{% else %}p-run{% endif %}">{{ stat.last_run.status }}</span>{% else %}Never run — click to trigger{% endif %}</div>
+          </div>
+          <div class="boi-rt"><div class="boi-cnt">{{ stat.total_runs }}</div><div class="boi-sub">runs</div></div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="hub-card">
+        <div class="hub-card-hdr"><h3>📊 Recent Execution History</h3><span style="font-size:.72rem;color:var(--text-muted);">Last {{ recent_runs|length }} runs</span></div>
+        <div style="overflow-x:auto;">
+          {% if recent_runs %}
+          <table class="dtable">
+            <thead><tr><th>Bot</th><th>Status</th><th>Records</th><th>Started</th><th>By</th></tr></thead>
+            <tbody>
+              {% for run in recent_runs %}
+              <tr>
+                <td><div class="tdname">{{ run.get_bot_name_display }}</div></td>
+                <td>{% if run.status == 'success' %}<span class="pill p-ok">✓ Success</span>{% elif run.status == 'running' %}<span class="pill p-run">⟳ Running</span>{% elif run.status == 'partial' %}<span class="pill p-part">⚠ Partial</span>{% else %}<span class="pill p-fail">✗ Failed</span>{% endif %}</td>
+                <td style="font-weight:700;">{{ run.records_processed }}</td>
+                <td style="font-size:.75rem;">{{ run.started_at|date:"d M H:i" }}</td>
+                <td style="font-size:.75rem;">{% if run.triggered_by %}{{ run.triggered_by.get_full_name|default:run.triggered_by.username }}{% else %}<span style="color:var(--text-muted)">Cron</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<div class="tempty">No runs yet. Trigger a bot to see results.</div>{% endif %}
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+      <div class="hub-card">
+        <div class="hub-card-hdr"><h3>📅 Upcoming Holidays</h3><span style="font-size:.72rem;color:var(--text-muted);">Bot 3 synced</span></div>
+        {% if upcoming_holidays %}{% for h in upcoming_holidays %}
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem 1.25rem;border-bottom:1px solid var(--border);">
+          <div><div style="font-size:.82rem;font-weight:600;">{{ h.name }}</div><div style="font-size:.72rem;color:var(--text-muted);">{{ h.date|date:"D, d M Y" }}</div></div>
+          <span class="pill {% if h.holiday_type == 'national' %}p-nat{% elif h.holiday_type == 'university' %}p-univ{% elif h.holiday_type == 'exam' %}p-exam{% elif h.holiday_type == 'event' %}p-event{% else %}p-other{% endif %}">{{ h.get_holiday_type_display }}</span>
+        </div>
+        {% endfor %}{% else %}<div class="tempty">No holidays synced. Run Bot 3.</div>{% endif %}
+      </div>
+      <div class="hub-card">
+        <div class="hub-card-hdr"><h3>🤖 Bot-Approved Leaves</h3><span style="font-size:.72rem;color:var(--text-muted);">Bot 1 actions</span></div>
+        {% if recent_bot_leaves %}{% for l in recent_bot_leaves %}
+        <div style="display:flex;align-items:center;gap:.85rem;padding:.8rem 1.25rem;border-bottom:1px solid var(--border);">
+          <span style="font-size:1.25rem;">📋</span>
+          <div style="flex:1;"><div style="font-size:.82rem;font-weight:600;">{{ l.student.name }}</div><div style="font-size:.7rem;color:var(--text-muted);">{{ l.date_requested|date:"d M Y" }} — {{ l.reason|truncatechars:40 }}</div></div>
+          <span class="pill p-bot">🤖 Auto-Approved</span>
+        </div>
+        {% endfor %}{% else %}<div class="tempty">No bot-approved leaves yet. Run Bot 1.</div>{% endif %}
+      </div>
+      <div class="hub-card">
+        <div class="hub-card-hdr"><h3>🚨 Critical Students (&lt;50%)</h3></div>
+        {% if critical_students %}{% for s in critical_students %}
+        <div style="display:flex;align-items:center;gap:.85rem;padding:.7rem 1.25rem;border-bottom:1px solid var(--border);">
+          <span style="font-size:1.1rem;">🎓</span>
+          <div style="flex:1;"><div style="font-size:.82rem;font-weight:600;">{{ s.name }}</div><div style="font-size:.7rem;color:var(--text-muted);">{{ s.enrollment_number }}</div></div>
+          <span class="pill p-crit">{{ s.attendance_pct|floatformat:0 }}%</span>
+        </div>
+        {% endfor %}{% else %}<div class="tempty">No critical students — excellent! 🎉</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════ BOT 1 TAB ═════════════ -->
+<div class="bot-panel" id="panel-bot1">
+  <div class="panel-left">
+    <div class="hub-card">
+      <div class="bot-id-hdr">
+        <span class="bot-badge" style="background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.3);">🤖 Bot 1 — Database RPA</span>
+        <h2>Auto-Leave Processor</h2>
+        <p>Reads all Pending leave applications. Students with &gt;80% attendance get auto-approved. Others stay Pending for HOD review. Zero human intervention needed.</p>
+      </div>
+      <ul class="spec-list">
+        <li><span>🔧</span><span class="sk">Mechanism:</span><span class="sv">RPA.Database (direct SQL)</span></li>
+        <li><span>✅</span><span class="sk">Rule &gt;80%:</span><span class="sv">Auto-Approve + mark Excused</span></li>
+        <li><span>⏸</span><span class="sk">Rule ≤80%:</span><span class="sv">Keep Pending for HOD</span></li>
+        <li><span>🔒</span><span class="sk">Scope:</span><span class="sv">1-day leaves only</span></li>
+        <li><span>📂</span><span class="sk">Robot File:</span><span class="sv">bot1_leave_processor.robot</span></li>
+      </ul>
+      <div class="run-area">
+        <div class="stat-row">
+          <div class="stat-box"><div class="stat-val" style="color:#22c55e;">{{ bot_stats.leave_processor.total_runs }}</div><div class="stat-lbl">Runs</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#86efac;">{{ bot_stats.leave_processor.success_runs }}</div><div class="stat-lbl">Success</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#a5b4fc;">{{ leaves_auto_approved }}</div><div class="stat-lbl">Approved</div></div>
+        </div>
+        <form method="POST" action="{% url 'run_leave_processor_bot' %}">{% csrf_token %}<button type="submit" class="btn-run btn-green">&#9654; Run Auto-Leave Processor</button></form>
+        {% if bot_stats.leave_processor.last_run %}<div style="font-size:.73rem;color:var(--text-muted);text-align:center;">Last: {{ bot_stats.leave_processor.last_run.started_at|date:"d M Y, H:i:s" }} — <span class="pill {% if bot_stats.leave_processor.last_run.status == 'success' %}p-ok{% else %}p-fail{% endif %}">{{ bot_stats.leave_processor.last_run.status }}</span></div>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="panel-right">
+    <div class="hub-card">
+      <div class="hub-card-hdr"><h3>📋 Pending Leave Applications</h3><span class="pill p-pend">{{ pending_leaves|length }} pending</span></div>
+      <div style="overflow-x:auto;">
+        {% if pending_leaves %}
+        <table class="dtable">
+          <thead><tr><th>Student</th><th>Enrollment</th><th>Date</th><th>Reason</th><th>Attendance</th><th>Bot Decision</th></tr></thead>
+          <tbody>{% for l in pending_leaves %}
+          <tr>
+            <td><div class="tdname">{{ l.student.name }}</div></td>
+            <td style="font-size:.73rem;">{{ l.student.enrollment_number }}</td>
+            <td style="font-size:.75rem;">{{ l.date_requested|date:"d M Y" }}</td>
+            <td style="font-size:.75rem;max-width:150px;">{{ l.reason|truncatechars:45 }}</td>
+            <td><span class="pill {% if l.student_attendance_pct >= 80 %}p-safe{% elif l.student_attendance_pct >= 60 %}p-warn{% else %}p-crit{% endif %}">{{ l.student_attendance_pct|floatformat:0 }}%</span></td>
+            <td>{% if l.student_attendance_pct >= 80 %}<span class="pill p-ok">✓ Will Auto-Approve</span>{% else %}<span class="pill p-pend">Will Stay Pending</span>{% endif %}</td>
+          </tr>{% endfor %}
+          </tbody>
+        </table>
+        {% else %}<div class="tempty">No pending applications — nothing for Bot 1 to process.</div>{% endif %}
+      </div>
+    </div>
+    <div class="hub-card">
+      <div class="hub-card-hdr"><h3>✅ Bot-Approved Leaves (History)</h3><span style="font-size:.72rem;color:var(--text-muted);">Zero human intervention</span></div>
+      <div style="overflow-x:auto;">
+        {% if recent_bot_leaves %}
+        <table class="dtable">
+          <thead><tr><th>Student</th><th>Date Applied</th><th>Reason</th><th>Approved At</th></tr></thead>
+          <tbody>{% for l in recent_bot_leaves %}
+          <tr><td><div class="tdname">{{ l.student.name }}</div></td><td style="font-size:.75rem;">{{ l.date_requested|date:"d M Y" }}</td><td style="font-size:.75rem;max-width:200px;">{{ l.reason|truncatechars:55 }}</td><td style="font-size:.73rem;color:var(--text-muted);">{{ l.reviewed_at|date:"d M Y, H:i" }}</td></tr>
+          {% endfor %}</tbody>
+        </table>
+        {% else %}<div class="tempty">No bot-approved leaves yet. Run Bot 1 to process applications.</div>{% endif %}
+      </div>
+    </div>
+    <div class="terminal-card">
+      <div class="term-hdr"><div class="tdots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div><h3>🖥 Bot 1 Activity Log</h3><span class="live-indicator" style="font-size:.65rem;"><span class="live-dot"></span> Live</span></div>
+      <div class="term-body" id="feed-bot1">
+        {% for e in bot1_logs %}<div class="log-entry" data-id="{{ e.id }}"><span class="log-time">{{ e.timestamp|date:"H:i:s" }}</span><div><div class="log-action s-{{ e.status }}">{{ e.action }}</div>{% if e.target %}<div class="log-target">&rarr; {{ e.target }}</div>{% endif %}</div></div>{% empty %}<div class="term-empty"><span>🤖</span><p>No activity yet. Click Run to start.</p></div>{% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════ BOT 2 TAB ═════════════ -->
+<div class="bot-panel" id="panel-bot2">
+  <div class="panel-left">
+    <div class="hub-card">
+      <div class="bot-id-hdr">
+        <span class="bot-badge" style="background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);">📄 Bot 2 — PDF + Email RPA</span>
+        <h2>Monthly HOD PDF Report</h2>
+        <p>Generates a professional PDF of students below the threshold and emails it directly to the Dean. Built with <strong>ReportLab</strong> — zero browser dependency.</p>
+      </div>
+      <ul class="spec-list">
+        <li><span>🔧</span><span class="sk">Mechanism:</span><span class="sv">ReportLibrary.py + SMTP</span></li>
+        <li><span>📊</span><span class="sk">Threshold:</span><span class="sv">&lt;{{ alert_config.hod_report_threshold }}% attendance</span></li>
+        <li><span>📧</span><span class="sk">Dean Email:</span><span class="sv">{{ alert_config.dean_email|default:"Not configured" }}</span></li>
+        <li><span>📁</span><span class="sk">Output:</span><span class="sv">PDF in rpa_bot/reports/</span></li>
+        <li><span>📂</span><span class="sk">Robot File:</span><span class="sv">bot2_hod_report.robot</span></li>
+      </ul>
+      <div class="run-area">
+        <div class="stat-row">
+          <div class="stat-box"><div class="stat-val" style="color:#60a5fa;">{{ bot_stats.hod_report.total_runs }}</div><div class="stat-lbl">Runs</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#86efac;">{{ bot_stats.hod_report.success_runs }}</div><div class="stat-lbl">Success</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#fbbf24;">{{ below_threshold_count }}</div><div class="stat-lbl">In Report</div></div>
+        </div>
+        <form method="POST" action="{% url 'run_hod_report_bot' %}">{% csrf_token %}<button type="submit" class="btn-run btn-blue" {% if not alert_config.dean_email %}disabled title="Configure Dean email first"{% endif %}>&#9654; Generate &amp; Email HOD Report</button></form>
+        {% if not alert_config.dean_email %}<div style="font-size:.73rem;color:#fbbf24;text-align:center;">⚠ Set Dean's email in Alert Config tab first.</div>{% endif %}
+        {% if bot_stats.hod_report.last_run %}<div style="font-size:.73rem;color:var(--text-muted);text-align:center;">Last: {{ bot_stats.hod_report.last_run.started_at|date:"d M Y, H:i:s" }} — <span class="pill {% if bot_stats.hod_report.last_run.status == 'success' %}p-ok{% else %}p-fail{% endif %}">{{ bot_stats.hod_report.last_run.status }}</span></div>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="panel-right">
+    <div class="hub-card">
+      <div class="hub-card-hdr"><h3>📊 Students in Report (Below {{ alert_config.hod_report_threshold }}%)</h3><span class="pill p-fail">{{ below_threshold_count }} students</span></div>
+      <div style="overflow-x:auto;">
+        {% if below_threshold_students %}
+        <table class="dtable">
+          <thead><tr><th>Student</th><th>Enrollment</th><th>Attendance %</th><th>Present</th><th>Total</th><th>Parent Email</th></tr></thead>
+          <tbody>{% for s in below_threshold_students %}
+          <tr><td><div class="tdname">{{ s.name }}</div></td><td style="font-size:.73rem;">{{ s.enrollment_number }}</td><td><span class="pill {% if s.attendance_pct >= 60 %}p-warn{% else %}p-crit{% endif %}">{{ s.attendance_pct|floatformat:1 }}%</span></td><td style="font-weight:700;">{{ s.present_count }}</td><td style="color:var(--text-muted);">{{ s.total_classes }}</td><td style="font-size:.73rem;color:var(--text-muted);">{{ s.parent_email|default:"—" }}</td></tr>
+          {% endfor %}</tbody>
+        </table>
+        {% else %}<div class="tempty">✅ All students above {{ alert_config.hod_report_threshold }}% — HOD report would be empty.</div>{% endif %}
+      </div>
+    </div>
+    <div class="terminal-card">
+      <div class="term-hdr"><div class="tdots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div><h3>🖥 Bot 2 Activity Log</h3><span class="live-indicator" style="font-size:.65rem;"><span class="live-dot"></span> Live</span></div>
+      <div class="term-body" id="feed-bot2">
+        {% for e in bot2_logs %}<div class="log-entry" data-id="{{ e.id }}"><span class="log-time">{{ e.timestamp|date:"H:i:s" }}</span><div><div class="log-action s-{{ e.status }}">{{ e.action }}</div>{% if e.target %}<div class="log-target">&rarr; {{ e.target }}</div>{% endif %}</div></div>{% empty %}<div class="term-empty"><span>📄</span><p>No activity yet. Click Run to generate a report.</p></div>{% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════ BOT 3 TAB ═════════════ -->
+<div class="bot-panel" id="panel-bot3">
+  <div class="panel-left">
+    <div class="hub-card">
+      <div class="bot-id-hdr">
+        <span class="bot-badge" style="background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3);">📅 Bot 3 — Excel + DB RPA</span>
+        <h2>Holiday Calendar Sync</h2>
+        <p>Reads <strong>academic_calendar.xlsx</strong> and syncs all holidays into the database. Once synced, the system <strong>blocks absence marking</strong> on those dates — fully automated.</p>
+      </div>
+      <ul class="spec-list">
+        <li><span>📁</span><span class="sk">Source:</span><span class="sv">academic_calendar.xlsx</span></li>
+        <li><span>🔧</span><span class="sk">Mechanism:</span><span class="sv">RPA.Excel + RPA.Database</span></li>
+        <li><span>🛡</span><span class="sk">Guard:</span><span class="sv">Blocks absences on holidays</span></li>
+        <li><span>🔄</span><span class="sk">Mode:</span><span class="sv">Upsert (safe to re-run)</span></li>
+        <li><span>📂</span><span class="sk">Robot File:</span><span class="sv">bot3_holiday_sync.robot</span></li>
+      </ul>
+      <div class="run-area">
+        <div class="stat-row">
+          <div class="stat-box"><div class="stat-val" style="color:#fbbf24;">{{ bot_stats.holiday_sync.total_runs }}</div><div class="stat-lbl">Runs</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#86efac;">{{ bot_stats.holiday_sync.success_runs }}</div><div class="stat-lbl">Success</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#a5b4fc;">{{ holidays_synced }}</div><div class="stat-lbl">Synced</div></div>
+        </div>
+        <form method="POST" action="{% url 'run_holiday_sync_bot' %}">{% csrf_token %}<button type="submit" class="btn-run btn-amber">&#9654; Sync Holiday Calendar</button></form>
+        {% if bot_stats.holiday_sync.last_run %}<div style="font-size:.73rem;color:var(--text-muted);text-align:center;">Last: {{ bot_stats.holiday_sync.last_run.started_at|date:"d M Y, H:i:s" }} — <span class="pill {% if bot_stats.holiday_sync.last_run.status == 'success' %}p-ok{% else %}p-fail{% endif %}">{{ bot_stats.holiday_sync.last_run.status }}</span></div>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="panel-right">
+    <div class="hub-card">
+      <div class="hub-card-hdr"><h3>📅 All Holidays in Database</h3><span class="pill p-ok">{{ all_holidays|length }} synced</span></div>
+      <div style="overflow-x:auto;">
+        {% if all_holidays %}
+        <table class="dtable">
+          <thead><tr><th>Holiday Name</th><th>Date</th><th>Type</th><th>Source</th></tr></thead>
+          <tbody>{% for h in all_holidays %}
+          <tr><td><div class="tdname">{{ h.name }}</div></td><td style="font-size:.75rem;">{{ h.date|date:"D, d M Y" }}</td><td><span class="pill {% if h.holiday_type == 'national' %}p-nat{% elif h.holiday_type == 'university' %}p-univ{% elif h.holiday_type == 'exam' %}p-exam{% elif h.holiday_type == 'event' %}p-event{% else %}p-other{% endif %}">{{ h.get_holiday_type_display }}</span></td><td>{% if h.synced_by_bot %}<span class="pill p-bot">🤖 Bot 3</span>{% else %}<span style="color:var(--text-muted);font-size:.72rem;">Manual</span>{% endif %}</td></tr>
+          {% endfor %}</tbody>
+        </table>
+        {% else %}<div class="tempty">No holidays synced. Click "Sync Holiday Calendar" to import from academic_calendar.xlsx.</div>{% endif %}
+      </div>
+    </div>
+    <div class="terminal-card">
+      <div class="term-hdr"><div class="tdots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div><h3>🖥 Bot 3 Activity Log</h3><span class="live-indicator" style="font-size:.65rem;"><span class="live-dot"></span> Live</span></div>
+      <div class="term-body" id="feed-bot3">
+        {% for e in bot3_logs %}<div class="log-entry" data-id="{{ e.id }}"><span class="log-time">{{ e.timestamp|date:"H:i:s" }}</span><div><div class="log-action s-{{ e.status }}">{{ e.action }}</div>{% if e.target %}<div class="log-target">&rarr; {{ e.target }}</div>{% endif %}</div></div>{% empty %}<div class="term-empty"><span>📅</span><p>No sync activity yet. Run Bot 3.</p></div>{% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════ BOT 4 TAB ═════════════ -->
+<div class="bot-panel" id="panel-bot4">
+  <div class="panel-left">
+    <div class="hub-card">
+      <div class="bot-id-hdr">
+        <span class="bot-badge" style="background:rgba(244,63,94,.15);color:#f87171;border:1px solid rgba(244,63,94,.3);">🚨 Bot 4 — Email RPA</span>
+        <h2>PTM Escalation Bot</h2>
+        <p>Finds students below <strong>50% attendance</strong> (critical zone) and sends escalation emails to parents requesting immediate PTM (Parent-Teacher Meeting) attendance.</p>
+      </div>
+      <ul class="spec-list">
+        <li><span>🎯</span><span class="sk">Target:</span><span class="sv">Students below 50%</span></li>
+        <li><span>📧</span><span class="sk">Action:</span><span class="sv">URGENT email to parent</span></li>
+        <li><span>🔧</span><span class="sk">Mechanism:</span><span class="sv">RPA.Database + SMTP</span></li>
+        <li><span>📋</span><span class="sk">Log:</span><span class="sv">Creates BotActivityLog entries</span></li>
+        <li><span>📂</span><span class="sk">Robot File:</span><span class="sv">bot4_ptm_escalation.robot</span></li>
+      </ul>
+      <div class="run-area">
+        <div class="stat-row">
+          <div class="stat-box"><div class="stat-val" style="color:#f87171;">{{ bot_stats.ptm_escalation.total_runs }}</div><div class="stat-lbl">Runs</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#86efac;">{{ bot_stats.ptm_escalation.success_runs }}</div><div class="stat-lbl">Success</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#fca5a5;">{{ critical_count }}</div><div class="stat-lbl">Critical Now</div></div>
+        </div>
+        <form method="POST" action="{% url 'run_ptm_escalation_bot' %}">{% csrf_token %}<button type="submit" class="btn-run btn-rose">&#9654; Run PTM Escalation</button></form>
+        {% if bot_stats.ptm_escalation.last_run %}<div style="font-size:.73rem;color:var(--text-muted);text-align:center;">Last: {{ bot_stats.ptm_escalation.last_run.started_at|date:"d M Y, H:i:s" }} — <span class="pill {% if bot_stats.ptm_escalation.last_run.status == 'success' %}p-ok{% else %}p-fail{% endif %}">{{ bot_stats.ptm_escalation.last_run.status }}</span></div>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="panel-right">
+    <div class="hub-card">
+      <div class="hub-card-hdr"><h3>🚨 PTM Zone — Below 50%</h3><span class="pill {% if critical_count > 0 %}p-crit{% else %}p-ok{% endif %}">{{ critical_count }} students</span></div>
+      <div style="overflow-x:auto;">
+        {% if critical_students %}
+        <table class="dtable">
+          <thead><tr><th>Student</th><th>Enrollment</th><th>Attendance %</th><th>Present</th><th>Total</th><th>Parent Email</th></tr></thead>
+          <tbody>{% for s in critical_students %}
+          <tr><td><div class="tdname">{{ s.name }}</div></td><td style="font-size:.73rem;">{{ s.enrollment_number }}</td><td><span class="pill p-crit">{{ s.attendance_pct|floatformat:1 }}%</span></td><td style="font-weight:700;">{{ s.present_count }}</td><td style="color:var(--text-muted);">{{ s.total_classes }}</td><td style="font-size:.73rem;color:var(--text-muted);">{{ s.parent_email|default:"—" }}</td></tr>
+          {% endfor %}</tbody>
+        </table>
+        {% else %}<div class="tempty">✅ No critical students below 50% — excellent attendance overall!</div>{% endif %}
+      </div>
+    </div>
+    <div class="hub-card">
+      <div class="hub-card-hdr"><h3>⚠ Warning Zone (50%–75%)</h3><span style="font-size:.72rem;color:var(--text-muted);">Being monitored</span></div>
+      <div style="overflow-x:auto;">
+        {% if warning_students %}
+        <table class="dtable">
+          <thead><tr><th>Student</th><th>Enrollment</th><th>Attendance %</th><th>Status</th></tr></thead>
+          <tbody>{% for s in warning_students %}
+          <tr><td><div class="tdname">{{ s.name }}</div></td><td style="font-size:.73rem;">{{ s.enrollment_number }}</td><td><span class="pill p-warn">{{ s.attendance_pct|floatformat:1 }}%</span></td><td><span class="pill p-pend">Monitoring</span></td></tr>
+          {% endfor %}</tbody>
+        </table>
+        {% else %}<div class="tempty">No students in the warning zone (50–75%) currently.</div>{% endif %}
+      </div>
+    </div>
+    <div class="terminal-card">
+      <div class="term-hdr"><div class="tdots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div><h3>🖥 Bot 4 Activity Log</h3><span class="live-indicator" style="font-size:.65rem;"><span class="live-dot"></span> Live</span></div>
+      <div class="term-body" id="feed-bot4">
+        {% for e in bot4_logs %}<div class="log-entry" data-id="{{ e.id }}"><span class="log-time">{{ e.timestamp|date:"H:i:s" }}</span><div><div class="log-action s-{{ e.status }}">{{ e.action }}</div>{% if e.target %}<div class="log-target">&rarr; {{ e.target }}</div>{% endif %}</div></div>{% empty %}<div class="term-empty"><span>🚨</span><p>No escalation activity yet. Run Bot 4.</p></div>{% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════ BOT 5 TAB ═════════════ -->
+<div class="bot-panel" id="panel-bot5">
+  <div class="panel-left">
+    <div class="hub-card">
+      <div class="bot-id-hdr">
+        <span class="bot-badge" style="background:rgba(99,102,241,.15);color:#818cf8;border:1px solid rgba(99,102,241,.3);">💾 Bot 5 — Backup RPA</span>
+        <h2>Nightly DB Backup</h2>
+        <p>Creates a timestamped PostgreSQL backup, generates an IT Health Report, and emails the confirmation to the administrator. Zero data loss guarantee.</p>
+      </div>
+      <ul class="spec-list">
+        <li><span>💾</span><span class="sk">Mechanism:</span><span class="sv">pg_dump + RPA.FileSystem</span></li>
+        <li><span>📁</span><span class="sk">Output:</span><span class="sv">backups/ directory (timestamped)</span></li>
+        <li><span>📧</span><span class="sk">Notifies:</span><span class="sv">Admin via SMTP</span></li>
+        <li><span>📊</span><span class="sk">Report:</span><span class="sv">IT Health + DB stats</span></li>
+        <li><span>📂</span><span class="sk">Robot File:</span><span class="sv">bot5_db_backup.robot</span></li>
+      </ul>
+      <div class="run-area">
+        <div class="stat-row">
+          <div class="stat-box"><div class="stat-val" style="color:#818cf8;">{{ bot_stats.db_backup.total_runs }}</div><div class="stat-lbl">Runs</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#86efac;">{{ bot_stats.db_backup.success_runs }}</div><div class="stat-lbl">Success</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#a5b4fc;">{{ backup_count }}</div><div class="stat-lbl">Backups</div></div>
+        </div>
+        <form method="POST" action="{% url 'run_db_backup_bot' %}">{% csrf_token %}<button type="submit" class="btn-run btn-indigo">&#9654; Run Nightly DB Backup</button></form>
+        {% if bot_stats.db_backup.last_run %}<div style="font-size:.73rem;color:var(--text-muted);text-align:center;">Last: {{ bot_stats.db_backup.last_run.started_at|date:"d M Y, H:i:s" }} — <span class="pill {% if bot_stats.db_backup.last_run.status == 'success' %}p-ok{% else %}p-fail{% endif %}">{{ bot_stats.db_backup.last_run.status }}</span></div>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="panel-right">
+    <div class="hub-card">
+      <div class="hub-card-hdr"><h3>💾 Backup Files on Disk</h3><span class="pill p-bot">{{ backup_count }} files</span></div>
+      <div style="overflow-x:auto;">
+        {% if backup_files %}
+        <table class="dtable">
+          <thead><tr><th>Filename</th><th>Size</th><th>Created</th></tr></thead>
+          <tbody>{% for bf in backup_files %}
+          <tr><td><div class="tdname" style="font-family:'JetBrains Mono',monospace;font-size:.78rem;">{{ bf.name }}</div></td><td style="font-weight:700;">{{ bf.size_kb }} KB</td><td style="font-size:.73rem;color:var(--text-muted);">{{ bf.modified }}</td></tr>
+          {% endfor %}</tbody>
+        </table>
+        {% else %}<div class="tempty">No backup files. Run Bot 5 to create one.</div>{% endif %}
+      </div>
+    </div>
+    <div class="hub-card">
+      <div class="hub-card-hdr"><h3>📊 Live IT Health Snapshot</h3></div>
+      <div class="hub-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div class="stat-box"><div class="stat-val" style="color:#818cf8;">{{ students_protected }}</div><div class="stat-lbl">Total Students</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:#22c55e;">{{ total_attendance_records }}</div><div class="stat-lbl">Attendance Records</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:#f59e0b;">{{ total_leave_apps }}</div><div class="stat-lbl">Leave Applications</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:#a5b4fc;">{{ total_executions }}</div><div class="stat-lbl">Bot Executions</div></div>
+      </div>
+    </div>
+    <div class="terminal-card">
+      <div class="term-hdr"><div class="tdots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div><h3>🖥 Bot 5 Activity Log</h3><span class="live-indicator" style="font-size:.65rem;"><span class="live-dot"></span> Live</span></div>
+      <div class="term-body" id="feed-bot5">
+        {% for e in bot5_logs %}<div class="log-entry" data-id="{{ e.id }}"><span class="log-time">{{ e.timestamp|date:"H:i:s" }}</span><div><div class="log-action s-{{ e.status }}">{{ e.action }}</div>{% if e.target %}<div class="log-target">&rarr; {{ e.target }}</div>{% endif %}</div></div>{% empty %}<div class="term-empty"><span>💾</span><p>No backup activity yet. Run Bot 5.</p></div>{% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════ LIVE TERMINAL TAB ═════════════ -->
+<div class="bot-panel" id="panel-terminal" style="display:none;">
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:1.5rem;">
+    <div class="terminal-card" style="min-height:600px;">
+      <div class="term-hdr"><div class="tdots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div><h3>💻 Master Live Activity Terminal — All Bots</h3><span class="live-indicator" style="font-size:.65rem;"><span class="live-dot"></span> Polling every 4s</span></div>
+      <div class="term-body" id="terminal-feed" style="height:550px;">
+        {% if activity_feed %}{% for entry in activity_feed %}
+        <div class="log-entry" data-id="{{ entry.id }}">
+          <span class="log-time">{{ entry.timestamp|date:"H:i:s" }}</span>
+          <span style="font-size:.68rem;font-weight:600;color:#818cf8;flex-shrink:0;min-width:120px;">{{ entry.get_bot_name_display }}</span>
+          <div><div class="log-action s-{{ entry.status }}">{{ entry.action }}</div>{% if entry.target %}<div class="log-target">&rarr; {{ entry.target }}</div>{% endif %}</div>
+        </div>{% endfor %}
+        {% else %}<div class="term-empty" id="terminal-empty"><span>🤖</span><p>No activity yet. Run any bot to see logs here.</p></div>{% endif %}
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+      <div class="hub-card">
+        <div class="hub-card-hdr"><h3>🤖 Bot Status</h3></div>
+        {% for key, stat in bot_stats.items %}
+        <div class="boi" onclick="switchBotKey('{{ key }}')">
+          <span class="boi-icon">{% if key == 'leave_processor' %}🤖{% elif key == 'hod_report' %}📄{% elif key == 'holiday_sync' %}📅{% elif key == 'ptm_escalation' %}🚨{% else %}💾{% endif %}</span>
+          <div class="boi-info">
+            <div class="boi-name" style="font-size:.8rem;">{% if key == 'leave_processor' %}Bot 1{% elif key == 'hod_report' %}Bot 2{% elif key == 'holiday_sync' %}Bot 3{% elif key == 'ptm_escalation' %}Bot 4{% else %}Bot 5{% endif %}</div>
+            <div class="boi-desc">{% if stat.last_run %}<span class="pill {% if stat.last_run.status == 'success' %}p-ok{% elif stat.last_run.status == 'failed' %}p-fail{% else %}p-run{% endif %}" style="font-size:.62rem;">{{ stat.last_run.status }}</span> {{ stat.last_run.started_at|date:"d M, H:i" }}{% else %}Never run{% endif %}</div>
+          </div>
+          <div class="boi-rt"><div class="boi-cnt" style="font-size:.9rem;">{{ stat.total_runs }}</div><div class="boi-sub">runs</div></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+function toggleTheme(){
+  const h=document.documentElement,t=h.getAttribute('data-theme')==='dark'?'light':'dark';
+  h.setAttribute('data-theme',t);localStorage.setItem('theme',t);
+  document.getElementById('themeBtn').textContent=t==='dark'?'\u2600 Light':'\uD83C\uDF19 Dark';
+}
+window.addEventListener('DOMContentLoaded',function(){
+  const t=localStorage.getItem('theme')||'dark';
+  document.getElementById('themeBtn').textContent=t==='dark'?'\u2600 Light':'\uD83C\uDF19 Dark';
+  const hash=location.hash.replace('#','');
+  if(hash)switchTab(hash,document.getElementById('tab-'+hash));
+});
+
+const KEYMAP={'leave_processor':'bot1','hod_report':'bot2','holiday_sync':'bot3','ptm_escalation':'bot4','db_backup':'bot5'};
+
+function switchTab(id,btn){
+  document.querySelectorAll('.bot-panel').forEach(function(p){p.style.display='none';p.classList.remove('active')});
+  document.querySelectorAll('.bot-tab-btn').forEach(function(b){b.classList.remove('active')});
+  const p=document.getElementById('panel-'+id);
+  if(p){p.style.display='';p.classList.add('active')}
+  if(btn)btn.classList.add('active');
+  location.hash=id;
+}
+function switchBotKey(k){const id=KEYMAP[k]||k;switchTab(id,document.getElementById('tab-'+id)||document.getElementById('tab-'+k))}
+
+// Live polling
+(function(){
+  const API='{% url "automation_hub_feed_api" %}';
+  const master=document.getElementById('terminal-feed');
+  const feeds={'leave_processor':document.getElementById('feed-bot1'),'hod_report':document.getElementById('feed-bot2'),'holiday_sync':document.getElementById('feed-bot3'),'ptm_escalation':document.getElementById('feed-bot4'),'db_backup':document.getElementById('feed-bot5')};
+  let lastId=0;
+  document.querySelectorAll('[data-id]').forEach(function(el){const id=parseInt(el.dataset.id,10);if(id>lastId)lastId=id});
+  const CLS={success:'s-success',info:'s-info',warning:'s-warning',error:'s-error'};
+
+  function mRow(e){
+    const r=document.createElement('div');r.className='log-entry';r.dataset.id=e.id;
+    r.innerHTML='<span class="log-time">'+e.timestamp+'</span><span style="font-size:.68rem;font-weight:600;color:#818cf8;flex-shrink:0;min-width:120px;">'+e.bot+'</span><div><div class="log-action '+(CLS[e.status]||'s-info')+'">'+e.icon+' '+e.action+'</div>'+(e.target?'<div class="log-target">&rarr; '+e.target+'</div>':'')+'</div>';
+    return r;
+  }
+  function bRow(e){
+    const r=document.createElement('div');r.className='log-entry';r.dataset.id=e.id;
+    r.innerHTML='<span class="log-time">'+e.timestamp+'</span><div><div class="log-action '+(CLS[e.status]||'s-info')+'">'+e.icon+' '+e.action+'</div>'+(e.target?'<div class="log-target">&rarr; '+e.target+'</div>':'')+'</div>';
+    return r;
+  }
+
+  function poll(){
+    fetch(API+'?since_id='+lastId)
+      .then(function(r){return r.json()})
+      .then(function(data){
+        if(!data.entries||!data.entries.length)return;
+        var emp=document.getElementById('terminal-empty');
+        if(emp)emp.remove();
+        data.entries.forEach(function(e){
+          if(e.id>lastId)lastId=e.id;
+          if(master)master.insertBefore(mRow(e),master.firstChild);
+          // Match by bot_name field from API (need to map bot display to key)
+          // The feed_api returns e.bot as display name like "Bot 1 — Auto-Leave Processor"
+          // We match by checking which feed key is in the bot display name
+          Object.keys(feeds).forEach(function(k){
+            var feed=feeds[k];
+            if(!feed)return;
+            var keyWords={'leave_processor':'Leave','hod_report':'HOD','holiday_sync':'Holiday','ptm_escalation':'PTM','db_backup':'Backup'};
+            if(e.bot&&e.bot.indexOf(keyWords[k])!==-1){
+              var emInner=feed.querySelector('.term-empty');
+              if(emInner)emInner.remove();
+              feed.insertBefore(bRow(e),feed.firstChild);
+            }
+          });
+        });
+        if(master){var rows=master.querySelectorAll('.log-entry');for(var i=100;i<rows.length;i++)rows[i].remove()}
+      }).catch(function(){});
+  }
+  setInterval(poll,4000);
+})();
+
+{% if messages %}
+window.addEventListener('DOMContentLoaded',function(){
+  {% for msg in messages %}
+  var b=document.createElement('div');
+  b.style.cssText='position:fixed;top:70px;right:1.5rem;z-index:9999;background:{% if msg.tags == "success" %}rgba(34,197,94,.97){% elif msg.tags == "error" %}rgba(244,63,94,.97){% else %}rgba(245,158,11,.97){% endif %};color:#fff;padding:.75rem 1.25rem;border-radius:12px;font-size:.82rem;font-weight:600;max-width:420px;box-shadow:0 8px 24px rgba(0,0,0,.4);animation:fadeIn .4s ease;cursor:pointer;line-height:1.4;';
+  b.textContent='{{ msg|escapejs }}';
+  b.onclick=function(){this.remove()};
+  document.body.appendChild(b);
+  setTimeout(function(){if(b.parentNode)b.remove()},7000);
+  {% endfor %}
+});
+{% endif %}
+</script>
+</body>
+</html>

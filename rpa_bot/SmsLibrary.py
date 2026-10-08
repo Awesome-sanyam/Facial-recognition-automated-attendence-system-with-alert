@@ -44,4 +44,9 @@ class SmsLibrary:
             )
             logging.info(f"SMS successfully sent to {to_number}. SID: {message.sid}")
         except Exception as e:
-            logging.error(f"Failed to send SMS to {to_number}. Error: {str(e)}")
+            err_str = str(e)
+            if "unverified" in err_str.lower() or "21608" in err_str:
+                logging.warning(f"SMS skipped for {to_number}: Number not verified on Twilio trial account.")
+                print(f"ℹ️ SMS skipped for {to_number}: Twilio trial account requires number verification.")
+            else:
+                logging.error(f"Failed to send SMS to {to_number}. Error: {err_str}")

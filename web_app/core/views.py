@@ -8,6 +8,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q
 import os, sys, json, smtplib
+from datetime import date as date_cls, timedelta
 from email.message import EmailMessage
 import logging
 
@@ -25,7 +26,7 @@ except ImportError:
 from .models import (
     FacultyProfile, AlertConfiguration,
     Student, AttendanceRecord, LeaveApplication,
-    HolidayCalendar, RPABotLog,
+    HolidayCalendar, RPABotLog, BotActivityLog,
 )
 
 
@@ -311,6 +312,11 @@ def faculty_dashboard(request):
         # New context for RPA Bots tab
         'bot_logs': bot_logs,
         'holiday_count': holiday_count,
+        # New: total bot executions and today's activity count for dashboard badge
+        'total_bot_executions': RPABotLog.objects.count(),
+        'activity_today': BotActivityLog.objects.filter(
+            timestamp__date=date_cls.today()
+        ).count(),
     }
     return render(request, 'core/faculty_dashboard.html', context)
 
@@ -404,34 +410,303 @@ def manage_leave(request, leave_id, action):
         return redirect('/faculty/dashboard/?tab=leaves')
     leave = get_object_or_404(LeaveApplication, id=leave_id)
     profile = getattr(request.user, 'faculty_profile', None)
-    if action == 'approve':
-        leave.status = 'Approved'
-        leave.reviewed_by = profile
-        leave.reviewed_at = timezone.now()
-        leave.save()
-        # Automatically update or create an attendance record with status='Excused'
-        AttendanceRecord.objects.update_or_create(
-            student=leave.student,
-            date=leave.date_requested,
-            defaults={'status': 'Excused'}
-        )
-        messages.success(request, f"Leave for {leave.student.name} approved and attendance recorded as Excused.")
-    elif action == 'reject':
-        leave.status = 'Rejected'
-        leave.reviewed_by = profile
-        leave.reviewed_at = timezone.now()
-        leave.save()
-        # If an Excused record was previously generated, revert it to Absent
-        AttendanceRecord.objects.filter(
-            student=leave.student,
-            date=leave.date_requested,
-            status='Excused'
-        ).update(status='Absent')
-        messages.warning(request, f"Leave for {leave.student.name} rejected.")
-    else:
-        messages.error(request, "Invalid leave action.")
-        return redirect('/faculty/dashboard/?tab=leaves')
+
+    try:
+        from django.db import transaction
+        with transaction.atomic():
+            if action == 'approve':
+                leave.status = 'Approved'
+                leave.reviewed_by = profile
+                leave.reviewed_at = timezone.now()
+                leave.approved_by_bot = False  # human action
+                leave.save()
+                # Atomic pair: both writes succeed together or both roll back
+                AttendanceRecord.objects.update_or_create(
+                    student=leave.student,
+                    date=leave.date_requested,
+                    defaults={'status': 'Excused'}
+                )
+                messages.success(request, f"✅ Leave for {leave.student.name} approved and attendance recorded as Excused.")
+            elif action == 'reject':
+                leave.status = 'Rejected'
+                leave.reviewed_by = profile
+                leave.reviewed_at = timezone.now()
+                leave.save()
+                # If an Excused record was previously generated, revert it to Absent
+                AttendanceRecord.objects.filter(
+                    student=leave.student,
+                    date=leave.date_requested,
+                    status='Excused'
+                ).update(status='Absent')
+                messages.warning(request, f"Leave for {leave.student.name} rejected.")
+            else:
+                messages.error(request, "Invalid leave action.")
+    except Exception as exc:
+        messages.error(request, f"❌ Database error — action could not be saved: {exc}")
+        logger.exception("manage_leave transaction failed: %s", exc)
+
     return redirect('/faculty/dashboard/?tab=leaves')
+
+
+# ─────────────────────────────────────────────
+#  LIVE AUTOMATION HUB
+# ─────────────────────────────────────────────
+
+@user_passes_test(is_approved_faculty, login_url='/faculty/login/')
+def automation_hub(request):
+    """
+    The Live Automation Hub -- a dedicated judge-facing dashboard that shows
+    bot activity in real-time with a live-scrolling terminal feed.
+    New tabbed design provides per-bot control panels for capstone presentation.
+    """
+    today = date_cls.today()
+
+    # Metric strip
+    total_executions     = RPABotLog.objects.count()
+    successful_runs      = RPABotLog.objects.filter(status='success').count()
+    activity_today       = BotActivityLog.objects.filter(timestamp__date=today).count()
+    leaves_auto_approved = LeaveApplication.objects.filter(approved_by_bot=True).count()
+    holidays_synced      = HolidayCalendar.objects.filter(synced_by_bot=True).count()
+    emails_dispatched    = BotActivityLog.objects.filter(
+        action__icontains='email', status='success'
+    ).count()
+    students_protected   = Student.objects.count()
+
+    all_attendance_ann = Student.objects.annotate(
+        tc=Count('attendancerecord'),
+        pc=Count('attendancerecord', filter=Q(attendancerecord__status='Present'))
+    ).filter(tc__gt=0)
+    critical_count = sum(
+        1 for s in all_attendance_ann if s.tc > 0 and (s.pc / s.tc * 100) < 50
+    )
+
+    # Recent bot runs
+    recent_runs   = RPABotLog.objects.select_related('triggered_by').order_by('-started_at')[:10]
+    activity_feed = BotActivityLog.objects.select_related('rpa_log').order_by('-timestamp')[:50]
+
+    # Per-bot stats
+    bot_stats = {}
+    for bot_key, bot_label in [
+        ('leave_processor', 'Bot 1'),
+        ('hod_report',      'Bot 2'),
+        ('holiday_sync',    'Bot 3'),
+        ('ptm_escalation',  'Bot 4'),
+        ('db_backup',       'Bot 5'),
+    ]:
+        last_run = RPABotLog.objects.filter(bot_name=bot_key).order_by('-started_at').first()
+        bot_stats[bot_key] = {
+            'label':        bot_label,
+            'last_run':     last_run,
+            'total_runs':   RPABotLog.objects.filter(bot_name=bot_key).count(),
+            'success_runs': RPABotLog.objects.filter(bot_name=bot_key, status='success').count(),
+        }
+
+    # Holiday data
+    upcoming_holidays = HolidayCalendar.objects.filter(date__gte=today).order_by('date')[:5]
+    all_holidays      = HolidayCalendar.objects.order_by('date')[:50]
+
+    # Bot-approved leaves
+    recent_bot_leaves = LeaveApplication.objects.filter(
+        approved_by_bot=True
+    ).select_related('student').order_by('-reviewed_at')[:8]
+
+    # Per-bot activity logs
+    bot1_logs = BotActivityLog.objects.filter(bot_name='leave_processor').order_by('-timestamp')[:30]
+    bot2_logs = BotActivityLog.objects.filter(bot_name='hod_report').order_by('-timestamp')[:30]
+    bot3_logs = BotActivityLog.objects.filter(bot_name='holiday_sync').order_by('-timestamp')[:30]
+    bot4_logs = BotActivityLog.objects.filter(bot_name='ptm_escalation').order_by('-timestamp')[:30]
+    bot5_logs = BotActivityLog.objects.filter(bot_name='db_backup').order_by('-timestamp')[:30]
+
+    # Pending leaves with attendance pct (Bot 1 panel)
+    pending_leaves_raw = LeaveApplication.objects.filter(
+        status='Pending'
+    ).select_related('student').order_by('-date_requested')[:20]
+    pending_leaves = []
+    for leave in pending_leaves_raw:
+        s = leave.student
+        tc = s.attendancerecord_set.count()
+        pc = s.attendancerecord_set.filter(status='Present').count()
+        leave.student_attendance_pct = round(pc / tc * 100, 1) if tc > 0 else 0.0
+        pending_leaves.append(leave)
+
+    # Alert config (for Bot 2 threshold display)
+    from .models import AlertConfiguration as _AC, FacultyProfile as _FP
+    profile = getattr(request.user, 'faculty_profile', None)
+    alert_config = None
+    if profile:
+        alert_config, _ = _AC.objects.get_or_create(faculty=profile)
+    else:
+        first_profile = _FP.objects.first()
+        if first_profile:
+            alert_config, _ = _AC.objects.get_or_create(faculty=first_profile)
+
+    hod_threshold = getattr(alert_config, 'hod_report_threshold', 75) if alert_config else 75
+
+    # Students by attendance zone
+    all_students_ann = Student.objects.annotate(
+        total_classes=Count('attendancerecord', distinct=True),
+        present_count=Count('attendancerecord',
+                            filter=Q(attendancerecord__status='Present'), distinct=True)
+    )
+    below_threshold_students = []
+    critical_students = []
+    warning_students  = []
+    for s in all_students_ann:
+        tc  = s.total_classes
+        pc  = s.present_count
+        pct = round(pc / tc * 100, 1) if tc > 0 else 0.0
+        s.attendance_pct = pct
+        if pct < hod_threshold:
+            below_threshold_students.append(s)
+        if pct < 50:
+            critical_students.append(s)
+        elif pct < 75:
+            warning_students.append(s)
+    below_threshold_count = len(below_threshold_students)
+
+    # Backup files on disk (Bot 5 panel)
+    import os as _os, datetime as _dt
+    backups_dir = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+        'backups'
+    )
+    backup_files = []
+    backup_count = 0
+    if _os.path.isdir(backups_dir):
+        for fname in sorted(_os.listdir(backups_dir), reverse=True)[:20]:
+            fpath = _os.path.join(backups_dir, fname)
+            if _os.path.isfile(fpath):
+                fstat = _os.stat(fpath)
+                backup_files.append({
+                    'name':     fname,
+                    'size_kb':  round(fstat.st_size / 1024, 1),
+                    'modified': _dt.datetime.fromtimestamp(fstat.st_mtime).strftime('%d %b %Y, %H:%M'),
+                })
+                backup_count += 1
+
+    # IT health
+    from .models import AttendanceRecord as _AR
+    total_attendance_records = _AR.objects.count()
+    total_leave_apps         = LeaveApplication.objects.count()
+
+    context = {
+        'page_title':                'Live Automation Hub',
+        # Metric strip
+        'total_executions':          total_executions,
+        'successful_runs':           successful_runs,
+        'activity_today':            activity_today,
+        'leaves_auto_approved':      leaves_auto_approved,
+        'holidays_synced':           holidays_synced,
+        'emails_dispatched':         emails_dispatched,
+        'students_protected':        students_protected,
+        'critical_count':            critical_count,
+        # Overview
+        'recent_runs':               recent_runs,
+        'activity_feed':             activity_feed,
+        'bot_stats':                 bot_stats,
+        'upcoming_holidays':         upcoming_holidays,
+        'recent_bot_leaves':         recent_bot_leaves,
+        'critical_students':         critical_students,
+        # Bot 1
+        'bot1_logs':                 bot1_logs,
+        'pending_leaves':            pending_leaves,
+        # Bot 2
+        'bot2_logs':                 bot2_logs,
+        'alert_config':              alert_config,
+        'below_threshold_students':  below_threshold_students,
+        'below_threshold_count':     below_threshold_count,
+        # Bot 3
+        'bot3_logs':                 bot3_logs,
+        'all_holidays':              all_holidays,
+        # Bot 4
+        'bot4_logs':                 bot4_logs,
+        'warning_students':          warning_students,
+        # Bot 5
+        'bot5_logs':                 bot5_logs,
+        'backup_files':              backup_files,
+        'backup_count':              backup_count,
+        'total_attendance_records':  total_attendance_records,
+        'total_leave_apps':          total_leave_apps,
+        # Nav
+        'faculty_name': request.user.get_full_name() or request.user.username,
+    }
+    return render(request, 'core/automation_hub.html', context)
+
+
+
+@user_passes_test(is_approved_faculty, login_url='/faculty/login/')
+def automation_hub_feed_api(request):
+    """
+    JSON API for the live terminal feed auto-refresh.
+    Returns the 50 most recent BotActivityLog entries.
+    The frontend JS polls this every 4 seconds.
+    """
+    since_id = request.GET.get('since_id', 0)
+    entries = BotActivityLog.objects.filter(
+        id__gt=int(since_id)
+    ).order_by('-timestamp')[:50]
+
+    STATUS_ICON = {
+        'success': '✅',
+        'info':    'ℹ️',
+        'warning': '⚠️',
+        'error':   '❌',
+    }
+    data = [
+        {
+            'id':        e.id,
+            'bot':       e.get_bot_name_display(),
+            'action':    e.action,
+            'target':    e.target,
+            'status':    e.status,
+            'icon':      STATUS_ICON.get(e.status, 'ℹ️'),
+            'timestamp': e.timestamp.strftime('%H:%M:%S'),
+            'detail':    e.detail,
+        }
+        for e in entries
+    ]
+    return JsonResponse({'entries': data, 'count': len(data)})
+
+
+@csrf_exempt
+def bot_log_api(request):
+    """
+    Public-ish API for Robot Framework bots to POST activity log entries.
+    Called at the end of each bot task via the RPA.HTTP library.
+    Protected by a shared secret token from settings/env.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    # Simple token check (add BOT_API_TOKEN=your-secret to .env)
+    import os as _os
+    expected_token = _os.environ.get('BOT_API_TOKEN', 'rpa-dev-token')
+    provided_token = request.headers.get('X-Bot-Token', '')
+    if provided_token != expected_token:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
+    bot_name = data.get('bot_name', 'system')
+    action   = data.get('action', '')
+    target   = data.get('target', '')
+    status   = data.get('status', 'info')
+    detail   = data.get('detail', '')
+
+    if not action:
+        return JsonResponse({'error': 'action is required'}, status=400)
+
+    entry = BotActivityLog.log(
+        bot_name=bot_name,
+        action=action,
+        target=target,
+        status=status,
+        detail=detail,
+    )
+    return JsonResponse({'id': entry.id, 'status': 'created'}, status=201)
 
 
 # ─────────────────────────────────────────────

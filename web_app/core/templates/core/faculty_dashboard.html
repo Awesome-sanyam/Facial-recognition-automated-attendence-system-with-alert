@@ -121,6 +121,7 @@
         <div class="nav-right">
             <span class="nav-user">Welcome, &nbsp;<strong>{{ faculty_name }}</strong></span>
             <button class="btn-sm" onclick="toggleTheme()" id="themeBtn">☀ Light</button>
+            <a href="{% url 'automation_hub' %}" class="btn-sm" style="border-color:#6366f1;color:#818cf8;" title="Live Automation Hub">&#129302; Automation Hub</a>
             <a href="/admin/" class="btn-sm" target="_blank">Django Admin ↗</a>
             <a href="{% url 'faculty_logout' %}" class="btn-sm">Log Out</a>
         </div>
@@ -148,10 +149,10 @@
                 <div class="s-value">{{ pending_count }}</div>
                 <div class="s-sub">Awaiting your review</div>
             </div>
-            <div class="stat s-success">
-                <div class="s-label">Alert Threshold</div>
-                <div class="s-value">{{ alert_config.alert_threshold }}%</div>
-                <div class="s-sub">{% if alert_config.email_alerts_enabled %}Email alerts ON{% else %}Alerts disabled{% endif %}</div>
+            <div class="stat s-success" style="cursor:pointer;" onclick="location.href='{% url 'automation_hub' %}'">
+                <div class="s-label">Bot Executions</div>
+                <div class="s-value">{{ total_bot_executions }}</div>
+                <div class="s-sub">{{ activity_today }} actions today · <a href="{% url 'automation_hub' %}" style="color:inherit;">View Hub →</a></div>
             </div>
         </div>
 
@@ -304,8 +305,24 @@
                         <tr>
                             <td><div class="td-name">{{ leave.student.name }}</div></td>
                             <td>{{ leave.date_requested }}</td>
-                            <td><span class="badge {% if leave.status == 'Approved' %}b-green{% elif leave.status == 'Rejected' %}b-red{% else %}b-warn{% endif %}">{{ leave.status }}</span></td>
-                            <td style="font-size:.78rem;color:var(--text-muted)">{{ leave.reviewed_by|default:"Pending" }}</td>
+                            <td>
+                              {% if leave.approved_by_bot %}
+                                <span class="badge" style="background:rgba(99,102,241,.18);color:#818cf8;border:1px solid rgba(99,102,241,.3);font-size:.65rem;">&#129302; Bot Auto-Approved</span>
+                              {% elif leave.status == 'Approved' %}
+                                <span class="badge b-green">&#10003; Approved</span>
+                              {% elif leave.status == 'Rejected' %}
+                                <span class="badge b-red">&#10007; Rejected</span>
+                              {% else %}
+                                <span class="badge b-warn">&#9203; Pending</span>
+                              {% endif %}
+                            </td>
+                            <td style="font-size:.78rem;color:var(--text-muted)">
+                              {% if leave.approved_by_bot %}
+                                <span style="color:#818cf8;">&#129302; RPA Bot 1</span>
+                              {% else %}
+                                {{ leave.reviewed_by|default:"Pending" }}
+                              {% endif %}
+                            </td>
                         </tr>
                         {% empty %}
                         <tr><td class="empty" colspan="4">No leave history yet.</td></tr>

@@ -191,6 +191,11 @@ class LeaveApplication(models.Model):
         null=True, blank=True, related_name='leaves_reviewed'
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    # NEW: tracks whether this leave was auto-approved by Bot 1
+    approved_by_bot = models.BooleanField(
+        default=False,
+        help_text="True if Bot 1 (Auto-Leave Processor) approved this leave automatically."
+    )
 
     def __str__(self):
         return f"Leave: {self.student.name} — {self.date_requested} [{self.status}]"
@@ -301,3 +306,66 @@ class RPABotLog(models.Model):
         self.errors = errors
         self.finished_at = timezone.now()
         self.save()
+
+
+# ─────────────────────────────────────────────
+#  NEW: BOT ACTIVITY LOG
+#  Granular per-action log for the Live Automation Hub.
+#  Each meaningful action a bot takes (e.g. "Approved leave for Rahul")
+#  is written here immediately, so the frontend terminal feed updates in
+#  near-real-time via AJAX polling.
+# ─────────────────────────────────────────────
+
+class BotActivityLog(models.Model):
+    """
+    Granular audit trail — one row per individual bot action.
+    Displayed in the live-scrolling terminal feed on the Automation Hub.
+    """
+    BOT_NAME_CHOICES = [
+        ('leave_processor',  '🤖 Bot 1 — Auto-Leave Processor'),
+        ('hod_report',       '📄 Bot 2 — HOD PDF Report'),
+        ('holiday_sync',     '📅 Bot 3 — Holiday Sync'),
+        ('ptm_escalation',   '🚨 Bot 4 — PTM Escalation'),
+        ('db_backup',        '💾 Bot 5 — Nightly Backup'),
+        ('alert_bot',        '📧 Alert Bot'),
+        ('face_recognition', '📷 Face Recognition'),
+        ('system',           '⚙️ System'),
+    ]
+    STATUS_CHOICES = [
+        ('success', 'Success'),
+        ('info',    'Info'),
+        ('warning', 'Warning'),
+        ('error',   'Error'),
+    ]
+
+    bot_name       = models.CharField(max_length=50, choices=BOT_NAME_CHOICES)
+    action         = models.CharField(max_length=300, help_text="Short, human-readable description of the action.")
+    target         = models.CharField(max_length=200, blank=True, help_text="The entity acted upon, e.g. student name or table.")
+    status         = models.CharField(max_length=20, choices=STATUS_CHOICES, default='info')
+    timestamp      = models.DateTimeField(auto_now_add=True)
+    detail         = models.TextField(blank=True, help_text="Optional extra detail or error message.")
+    # Links back to the parent RPABotLog run entry (optional)
+    rpa_log        = models.ForeignKey(
+        RPABotLog, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='activity_logs'
+    )
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Bot Activity Log'
+        verbose_name_plural = 'Bot Activity Logs'
+
+    def __str__(self):
+        return f"[{self.get_bot_name_display()}] {self.action} @ {self.timestamp:%H:%M:%S}"
+
+    @classmethod
+    def log(cls, bot_name, action, target='', status='info', detail='', rpa_log=None):
+        """Convenience class method to create a log entry in one line."""
+        return cls.objects.create(
+            bot_name=bot_name,
+            action=action,
+            target=target,
+            status=status,
+            detail=detail,
+            rpa_log=rpa_log,
+        )

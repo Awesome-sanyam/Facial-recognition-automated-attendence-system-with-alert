@@ -112,10 +112,12 @@ Auto Process Pending Leave Applications
 # Establishes a connection to Django's SQLite database file.
 # ══════════════════════════════════════════════════════════════════
 Connect To Application Database
-    [Documentation]    Opens a connection to the Django SQLite DB.
+    [Documentation]    Opens a connection to the Django SQLite DB with WAL mode.
     Log To Console    🗄 Connecting to SQLite: ${DB_PATH}
     Connect To Database    ${DB_MODULE}    ${DB_PATH}
-    Log To Console    ✅ Database connected.
+    Execute Sql String    PRAGMA journal_mode=WAL
+    Execute Sql String    PRAGMA busy_timeout=5000
+    Log To Console    ✅ DB connected — WAL mode, 5s busy-timeout active.
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -151,8 +153,8 @@ Get Student Attendance Percentage
     ${total_countable}=    Set Variable    ${countable_result[0][0]}
 
     IF    ${total_countable} == 0
-        Log To Console    ℹ️ Student ${student_id} has no countable attendance records.
-        RETURN    ${100.0}
+        Log To Console    ℹ️ Student ${student_id} has no countable attendance records (0.0%).
+        RETURN    ${0.0}
     END
 
     # Count present records
@@ -238,16 +240,18 @@ Approve Leave In Database
     ...    Atomically:
     ...    1. Sets LeaveApplication.status = 'Approved'.
     ...    2. Sets LeaveApplication.reviewed_at = NOW (ISO format).
-    ...    3. Creates (or updates) AttendanceRecord for that date as 'Excused'.
+    ...    3. Sets LeaveApplication.approved_by_bot = 1.
+    ...    4. Creates (or updates) AttendanceRecord for that date as 'Excused'.
     [Arguments]    ${leave_id}    ${student_id}    ${leave_date}
 
     ${now}=    Get Current Date    result_format=%Y-%m-%d %H:%M:%S
 
-    # Update the leave application status
+    # Update the leave application status and mark approved_by_bot
     ${sql_upd}=    Catenate    SEPARATOR=\n
     ...    UPDATE core_leaveapplication
     ...    SET status = 'Approved',
-    ...        reviewed_at = '${now}'
+    ...        reviewed_at = '${now}',
+    ...        approved_by_bot = 1
     ...    WHERE id = ${leave_id}
     Execute Sql String    ${sql_upd}
 
@@ -260,15 +264,15 @@ Approve Leave In Database
     ...        (${student_id}, '${leave_date}', '00:00:00', 'Excused')
     Execute Sql String    ${sql_ins}
 
-    Log To Console    💾 DB Updated — Leave ${leave_id}: Approved | Attendance: Excused
+    Log To Console    💾 DB Updated — Leave ${leave_id}: Approved (by Bot) | Attendance: Excused
 
 
 # ══════════════════════════════════════════════════════════════════
 # KEYWORD: Write Bot Log
-# Inserts a row into the RPABotLog table for audit purposes.
+# Inserts a row into the RPABotLog and BotActivityLog tables for audit purposes.
 # ══════════════════════════════════════════════════════════════════
 Write Bot Log
-    [Documentation]    Writes execution audit to core_rpabotlog table.
+    [Documentation]    Writes execution audit to core_rpabotlog and core_botactivitylog tables.
     [Arguments]    ${summary}    ${records}    ${errors}
 
     ${now}=    Get Current Date    result_format=%Y-%m-%d %H:%M:%S
@@ -281,6 +285,18 @@ Write Bot Log
     ...        ('${BOT_NAME}', '${status}', '${now}', '${now}',
     ...         '${summary}', ${records}, '${errors}', NULL)
     Execute Sql String    ${sql_log}
+
+    # Granular live log for Live Automation Hub feed
+    TRY
+        ${act_sql}=    Catenate    SEPARATOR=\n
+        ...    INSERT INTO core_botactivitylog
+        ...        (bot_name, action, target, timestamp, status, detail)
+        ...    VALUES
+        ...        ('${BOT_NAME}', '${summary}', 'core_leaveapplication', '${now}', '${status}', 'Processed via Robot Framework')
+        Execute Sql String    ${act_sql}
+    EXCEPT    AS    ${err}
+        Log To Console    ℹ️ BotActivityLog notice: ${err}
+    END
 
     Log To Console    📝 Audit log written to RPABotLog.
 

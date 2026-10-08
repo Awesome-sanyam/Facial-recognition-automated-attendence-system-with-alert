@@ -31,7 +31,7 @@ from django.contrib.auth.decorators import user_passes_test
 from django.shortcuts import redirect
 from django.utils import timezone
 
-from .models import AlertConfiguration, FacultyProfile, RPABotLog
+from .models import AlertConfiguration, FacultyProfile, RPABotLog, BotActivityLog
 
 logger = logging.getLogger(__name__)
 
@@ -132,21 +132,42 @@ def run_leave_processor_bot(request):
         status='running',
         triggered_by=request.user
     )
+    BotActivityLog.log(
+        bot_name='leave_processor',
+        action='Bot 1 triggered — scanning pending leave applications',
+        status='info',
+        rpa_log=log_entry,
+    )
 
     try:
         rc, stdout, stderr = _run_robot('bot1_leave_processor.robot', log_prefix='bot1')
         if rc == 0:
-            log_entry.mark_done('success', 'Auto-Leave Processor completed successfully.', errors='')
-            messages.success(request, "✅ Bot 1: Auto-Leave Processor completed. Pending leaves processed.")
+            # Parse stdout to count leaves auto-approved
+            approved = stdout.count('Auto-approved') + stdout.count('AUTO-APPROVED') + stdout.count('APPROVED')
+            summary = f'Auto-Leave Processor completed. {approved} leave(s) auto-approved.'
+            log_entry.mark_done('success', summary, records=approved, errors='')
+            BotActivityLog.log(
+                bot_name='leave_processor',
+                action=f'✅ Auto-Leave Processor completed — {approved} leave(s) processed',
+                status='success', rpa_log=log_entry,
+            )
+            messages.success(request, f"✅ Bot 1: Auto-Leave Processor completed. {approved} leave(s) processed.")
         else:
             err_snippet = stderr[-500:] if stderr else 'No stderr'
             log_entry.mark_done('failed', 'Bot failed.', errors=err_snippet)
+            BotActivityLog.log(
+                bot_name='leave_processor',
+                action='❌ Bot 1 failed — check Robot Framework log for details',
+                status='error', detail=err_snippet[:200], rpa_log=log_entry,
+            )
             messages.error(request, f"❌ Bot 1 failed. Check RF log. Error: {err_snippet[:200]}")
     except subprocess.TimeoutExpired:
         log_entry.mark_done('failed', 'Bot timed out after 300s.', errors='TimeoutExpired')
+        BotActivityLog.log('leave_processor', '❌ Bot 1 timed out after 5 minutes', status='error', rpa_log=log_entry)
         messages.error(request, "❌ Bot 1 timed out. The bot took longer than 5 minutes.")
     except Exception as e:
         log_entry.mark_done('failed', str(e), errors=str(e))
+        BotActivityLog.log('leave_processor', f'❌ Bot 1 unexpected error: {e}', status='error', rpa_log=log_entry)
         messages.error(request, f"❌ Bot 1 error: {e}")
         logger.exception("Bot 1 unexpected error")
 
@@ -171,6 +192,11 @@ def run_hod_report_bot(request):
         status='running',
         triggered_by=request.user
     )
+    BotActivityLog.log(
+        bot_name='hod_report',
+        action='Bot 2 triggered — generating HOD attendance PDF report',
+        status='info', rpa_log=log_entry,
+    )
 
     try:
         config, gmail_pass = _get_config_and_creds(request)
@@ -179,6 +205,7 @@ def run_hod_report_bot(request):
         if not dean_email:
             messages.warning(request, "⚠️ Dean email not configured. Set it in Alert Configuration.")
             log_entry.mark_done('failed', 'Dean email not configured.', errors='Missing dean_email')
+            BotActivityLog.log('hod_report', '⚠️ Aborted — Dean email not configured', status='warning', rpa_log=log_entry)
             return redirect('/faculty/dashboard/?tab=alerts')
 
         os.makedirs(REPORTS_DIR, exist_ok=True)
@@ -192,20 +219,31 @@ def run_hod_report_bot(request):
         rc, stdout, stderr = _run_robot('bot2_hod_report.robot', extra_vars=extra_vars, log_prefix='bot2')
 
         if rc == 0:
-            log_entry.mark_done('success', f'HOD Report generated and emailed to {dean_email}.', errors='')
+            summary = f'HOD Report generated and emailed to {dean_email}.'
+            log_entry.mark_done('success', summary, errors='')
+            BotActivityLog.log(
+                bot_name='hod_report',
+                action=f'✅ PDF report generated — emailed to {dean_email}',
+                target=dean_email, status='success', rpa_log=log_entry,
+            )
             messages.success(request, f"✅ Bot 2: HOD PDF Report generated and emailed to {dean_email}.")
         else:
             err_snippet = stderr[-500:] if stderr else 'No stderr'
             log_entry.mark_done('failed', 'Bot failed.', errors=err_snippet)
+            BotActivityLog.log('hod_report', '❌ Bot 2 failed — PDF generation error', status='error',
+                               detail=err_snippet[:200], rpa_log=log_entry)
             messages.error(request, f"❌ Bot 2 failed. Error: {err_snippet[:200]}")
     except ValueError as e:
         log_entry.mark_done('failed', str(e), errors=str(e))
+        BotActivityLog.log('hod_report', f'❌ Configuration error: {e}', status='error', rpa_log=log_entry)
         messages.error(request, f"❌ Configuration error: {e}")
     except subprocess.TimeoutExpired:
         log_entry.mark_done('failed', 'Bot timed out.', errors='TimeoutExpired')
+        BotActivityLog.log('hod_report', '❌ Bot 2 timed out', status='error', rpa_log=log_entry)
         messages.error(request, "❌ Bot 2 timed out.")
     except Exception as e:
         log_entry.mark_done('failed', str(e), errors=str(e))
+        BotActivityLog.log('hod_report', f'❌ Bot 2 unexpected error: {e}', status='error', rpa_log=log_entry)
         messages.error(request, f"❌ Bot 2 error: {e}")
         logger.exception("Bot 2 unexpected error")
 
@@ -231,28 +269,45 @@ def run_holiday_sync_bot(request):
         status='running',
         triggered_by=request.user
     )
+    BotActivityLog.log(
+        bot_name='holiday_sync',
+        action='Bot 3 triggered — reading academic_calendar.xlsx',
+        status='info', rpa_log=log_entry,
+    )
 
     calendar_path = os.path.join(PROJECT_ROOT, 'academic_calendar.xlsx')
     if not os.path.exists(calendar_path):
         msg = f"academic_calendar.xlsx not found at {calendar_path}. Please upload it to the project root."
         log_entry.mark_done('failed', msg, errors=msg)
+        BotActivityLog.log('holiday_sync', '❌ academic_calendar.xlsx not found', status='error', rpa_log=log_entry)
         messages.error(request, f"❌ {msg}")
         return redirect('/faculty/dashboard/?tab=rpa_bots')
 
     try:
         rc, stdout, stderr = _run_robot('bot3_holiday_sync.robot', log_prefix='bot3')
         if rc == 0:
-            log_entry.mark_done('success', 'Holiday Sync completed. academic_calendar.xlsx synced.', errors='')
-            messages.success(request, "✅ Bot 3: Holiday Sync completed. Academic calendar updated.")
+            # Count synced holidays from stdout
+            synced = stdout.count('Synced:') + stdout.count('SYNCED')
+            summary = f'Holiday Sync completed. {synced} holiday(s) synced from academic_calendar.xlsx.'
+            log_entry.mark_done('success', summary, records=synced, errors='')
+            BotActivityLog.log(
+                bot_name='holiday_sync',
+                action=f'✅ Academic calendar synced — {synced} holiday(s) written to DB',
+                target='HolidayCalendar table', status='success', rpa_log=log_entry,
+            )
+            messages.success(request, f"✅ Bot 3: Holiday Sync completed. {synced} holiday(s) updated.")
         else:
             err_snippet = stderr[-500:] if stderr else 'No stderr'
             log_entry.mark_done('failed', 'Bot failed.', errors=err_snippet)
+            BotActivityLog.log('holiday_sync', '❌ Bot 3 failed', status='error', detail=err_snippet[:200], rpa_log=log_entry)
             messages.error(request, f"❌ Bot 3 failed. Error: {err_snippet[:200]}")
     except subprocess.TimeoutExpired:
         log_entry.mark_done('failed', 'Bot timed out.', errors='TimeoutExpired')
+        BotActivityLog.log('holiday_sync', '❌ Bot 3 timed out', status='error', rpa_log=log_entry)
         messages.error(request, "❌ Bot 3 timed out.")
     except Exception as e:
         log_entry.mark_done('failed', str(e), errors=str(e))
+        BotActivityLog.log('holiday_sync', f'❌ Bot 3 error: {e}', status='error', rpa_log=log_entry)
         messages.error(request, f"❌ Bot 3 error: {e}")
         logger.exception("Bot 3 unexpected error")
 
@@ -277,6 +332,11 @@ def run_ptm_escalation_bot(request):
         status='running',
         triggered_by=request.user
     )
+    BotActivityLog.log(
+        bot_name='ptm_escalation',
+        action='Bot 4 triggered — scanning students below 50% attendance',
+        status='info', rpa_log=log_entry,
+    )
 
     try:
         config, gmail_pass = _get_config_and_creds(request)
@@ -288,20 +348,31 @@ def run_ptm_escalation_bot(request):
         rc, stdout, stderr = _run_robot('bot4_ptm_escalation.robot', extra_vars=extra_vars, log_prefix='bot4')
 
         if rc == 0:
-            log_entry.mark_done('success', 'PTM Escalation emails sent to all critical students.', errors='')
-            messages.success(request, "✅ Bot 4: PTM Escalation completed. Invite emails sent to parents.")
+            invited = stdout.count('PTM invite') + stdout.count('Invite sent') + stdout.count('email sent')
+            summary = f'PTM Escalation completed. {invited} parent(s) notified.'
+            log_entry.mark_done('success', summary, records=invited, errors='')
+            BotActivityLog.log(
+                bot_name='ptm_escalation',
+                action=f'✅ PTM escalation complete — {invited} parent email(s) dispatched',
+                status='success', rpa_log=log_entry,
+            )
+            messages.success(request, f"✅ Bot 4: PTM Escalation completed. {invited} invite(s) sent.")
         else:
             err_snippet = stderr[-500:] if stderr else 'No stderr'
             log_entry.mark_done('failed', 'Bot failed.', errors=err_snippet)
+            BotActivityLog.log('ptm_escalation', '❌ Bot 4 failed', status='error', detail=err_snippet[:200], rpa_log=log_entry)
             messages.error(request, f"❌ Bot 4 failed. Error: {err_snippet[:200]}")
     except ValueError as e:
         log_entry.mark_done('failed', str(e), errors=str(e))
+        BotActivityLog.log('ptm_escalation', f'❌ Config error: {e}', status='error', rpa_log=log_entry)
         messages.error(request, f"❌ Configuration error: {e}")
     except subprocess.TimeoutExpired:
         log_entry.mark_done('failed', 'Bot timed out.', errors='TimeoutExpired')
+        BotActivityLog.log('ptm_escalation', '❌ Bot 4 timed out', status='error', rpa_log=log_entry)
         messages.error(request, "❌ Bot 4 timed out.")
     except Exception as e:
         log_entry.mark_done('failed', str(e), errors=str(e))
+        BotActivityLog.log('ptm_escalation', f'❌ Bot 4 error: {e}', status='error', rpa_log=log_entry)
         messages.error(request, f"❌ Bot 4 error: {e}")
         logger.exception("Bot 4 unexpected error")
 
@@ -326,6 +397,11 @@ def run_db_backup_bot(request):
         status='running',
         triggered_by=request.user
     )
+    BotActivityLog.log(
+        bot_name='db_backup',
+        action='Bot 5 triggered — initiating nightly database backup',
+        target='db.sqlite3', status='info', rpa_log=log_entry,
+    )
 
     try:
         config, gmail_pass = _get_config_and_creds(request)
@@ -341,20 +417,39 @@ def run_db_backup_bot(request):
         rc, stdout, stderr = _run_robot('bot5_db_backup.robot', extra_vars=extra_vars, log_prefix='bot5')
 
         if rc == 0:
-            log_entry.mark_done('success', f'Nightly DB Backup completed. IT report emailed to {it_email}.', errors='')
+            # Try to extract backup file name from stdout
+            import re
+            match = re.search(r'attendance_db_backup_\S+\.sqlite3', stdout)
+            backup_file = match.group(0) if match else 'backup file created'
+            summary = f'Nightly DB Backup completed. {backup_file}. IT report emailed to {it_email}.'
+            log_entry.mark_done('success', summary, errors='')
+            BotActivityLog.log(
+                bot_name='db_backup',
+                action=f'✅ Database backup created — {backup_file}',
+                target='backups/', status='success', rpa_log=log_entry,
+            )
+            BotActivityLog.log(
+                bot_name='db_backup',
+                action=f'✅ IT health report emailed — {it_email}',
+                target=it_email, status='success', rpa_log=log_entry,
+            )
             messages.success(request, f"✅ Bot 5: DB Backup completed. IT health report emailed to {it_email}.")
         else:
             err_snippet = stderr[-500:] if stderr else 'No stderr'
             log_entry.mark_done('failed', 'Bot failed.', errors=err_snippet)
+            BotActivityLog.log('db_backup', '❌ Bot 5 failed', status='error', detail=err_snippet[:200], rpa_log=log_entry)
             messages.error(request, f"❌ Bot 5 failed. Error: {err_snippet[:200]}")
     except ValueError as e:
         log_entry.mark_done('failed', str(e), errors=str(e))
+        BotActivityLog.log('db_backup', f'❌ Config error: {e}', status='error', rpa_log=log_entry)
         messages.error(request, f"❌ Configuration error: {e}")
     except subprocess.TimeoutExpired:
         log_entry.mark_done('failed', 'Bot timed out.', errors='TimeoutExpired')
+        BotActivityLog.log('db_backup', '❌ Bot 5 timed out', status='error', rpa_log=log_entry)
         messages.error(request, "❌ Bot 5 timed out.")
     except Exception as e:
         log_entry.mark_done('failed', str(e), errors=str(e))
+        BotActivityLog.log('db_backup', f'❌ Bot 5 error: {e}', status='error', rpa_log=log_entry)
         messages.error(request, f"❌ Bot 5 error: {e}")
         logger.exception("Bot 5 unexpected error")
 

@@ -27,6 +27,11 @@ web_app/staticfiles/
 rpa_bot/log.html
 rpa_bot/output.xml
 rpa_bot/report.html
+rpa_bot/*_log_*.html
+rpa_bot/*_output_*.xml
+rpa_bot/*_report_*.html
+rpa_bot/*.html
+rpa_bot/*.xml
 rpa_bot/selenium-screenshot-*.png
 rpa_bot/__pycache__/
 rpa_bot/reports/

@@ -5,7 +5,7 @@ from django.utils.html import format_html
 from .models import (
     FacultyProfile, AlertConfiguration,
     Student, AttendanceRecord, LeaveApplication,
-    HolidayCalendar, RPABotLog,
+    HolidayCalendar, RPABotLog, BotActivityLog,
 )
 
 
@@ -171,4 +171,43 @@ class RPABotLogAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         # Logs are written only by bots — not manually
+        return False
+
+
+# ─────────────────────────────────────────────
+#  NEW: BOT ACTIVITY LOG ADMIN
+# ─────────────────────────────────────────────
+
+@admin.register(BotActivityLog)
+class BotActivityLogAdmin(admin.ModelAdmin):
+    """
+    Read-only granular audit trail for individual bot actions.
+    Displayed in the Live Automation Hub terminal feed.
+    """
+    list_display  = ('timestamp', 'get_bot_name_display', 'status_badge', 'action', 'target')
+    list_filter   = ('bot_name', 'status', 'timestamp')
+    search_fields = ('action', 'target', 'detail')
+    readonly_fields = ('bot_name', 'action', 'target', 'status', 'timestamp', 'detail', 'rpa_log')
+    ordering      = ('-timestamp',)
+    list_per_page = 100
+    date_hierarchy = 'timestamp'
+
+    def status_badge(self, obj):
+        color_map = {
+            'success': '#16a34a',
+            'info':    '#2563eb',
+            'warning': '#d97706',
+            'error':   '#dc2626',
+        }
+        color = color_map.get(obj.status, '#6b7280')
+        return format_html(
+            '<span style="color:{};font-weight:700;text-transform:uppercase">{}</span>',
+            color, obj.status
+        )
+    status_badge.short_description = 'Status'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False

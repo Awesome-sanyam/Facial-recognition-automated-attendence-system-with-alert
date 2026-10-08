@@ -108,7 +108,9 @@ Sync Academic Calendar Holidays
 Connect To Application Database
     Log To Console    🗄 Connecting to SQLite: ${DB_PATH}
     Connect To Database    ${DB_MODULE}    ${DB_PATH}
-    Log To Console    ✅ DB connected.
+    Execute Sql String    PRAGMA journal_mode=WAL
+    Execute Sql String    PRAGMA busy_timeout=5000
+    Log To Console    ✅ DB connected — WAL mode active.
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -173,6 +175,8 @@ Upsert Holiday Row
     ${clean_type}=    Set Variable If
     ...    '${h_type}' in ${valid_types}    ${h_type}    University
 
+    # Sanitize holiday name for safe SQLite string interpolation
+    ${safe_name}=    Replace String    ${name}    '    ''
     ${now}=    Get Current Date    result_format=%Y-%m-%d %H:%M:%S
 
     TRY
@@ -181,7 +185,7 @@ Upsert Holiday Row
         ...    INSERT OR REPLACE INTO core_holidaycalendar
         ...        (date, name, holiday_type, synced_at, synced_by_bot)
         ...    VALUES
-        ...        ('${date_str}', '${name}', '${clean_type}', '${now}', 1)
+        ...        ('${date_str}', '${safe_name}', '${clean_type}', '${now}', 1)
         Execute Sql String    ${sql_ins}
         Log To Console    ✅ Synced: ${date_str} — ${name} (${clean_type})
         RETURN    synced
@@ -253,6 +257,14 @@ Write Bot Log
         ...        ('${BOT_NAME}', '${status}', '${now}', '${now}',
         ...         '${summary}', ${records}, '${errors}', NULL)
         Execute Sql String    ${sql_log}
+
+        # Granular log for Live Automation Hub
+        ${act_sql}=    Catenate    SEPARATOR=\n
+        ...    INSERT INTO core_botactivitylog
+        ...        (bot_name, action, target, timestamp, status, detail)
+        ...    VALUES
+        ...        ('${BOT_NAME}', '${summary}', 'core_holidaycalendar', '${now}', '${status}', 'Synced via Robot Framework')
+        Execute Sql String    ${act_sql}
         Log To Console    📝 Audit log written.
     EXCEPT    AS    ${err}
         Log To Console    ⚠️ Could not write audit log: ${err}

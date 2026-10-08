@@ -35,6 +35,15 @@ urlpatterns = [
     path('faculty/alerts/save/', views.save_alert_config, name='save_alert_config'),
     path('faculty/alerts/run/', views.run_alert_bot, name='run_alert_bot'),
 
+    # ── NEW: Live Automation Hub (judge-facing full page) ─
+    path('automation-hub/', views.automation_hub, name='automation_hub'),
+
+    # ── NEW: Live Feed JSON API (polled every 4 s by JS) ──
+    path('api/automation-feed/', views.automation_hub_feed_api, name='automation_hub_feed_api'),
+
+    # ── NEW: Bot Log POST API (called by Robot Framework) ─
+    path('api/bot-log/', views.bot_log_api, name='bot_log_api'),
+
     # ── NEW: 5 Enterprise RPA Bots ───────────────────────
     # Bot 1 — Auto-Leave Processor
     path('faculty/bots/leave-processor/', rpa_runner.run_leave_processor_bot, name='run_leave_processor_bot'),

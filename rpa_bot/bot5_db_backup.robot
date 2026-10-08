@@ -90,16 +90,20 @@ Nightly Database Backup And Health Report
             Send IT Health Report    ${metrics}
             Close Connection
             Log To Console    ✅ IT health report emailed to: ${IT_ADMIN_EMAIL}
+            ${summary}=    Set Variable
+            ...    Nightly backup completed. File: ${backup_path}. DB stats collected and emailed to ${IT_ADMIN_EMAIL}.
         EXCEPT    AS    ${err}
             Log To Console    ⚠️ Could not email IT health report: ${err}
+            ${summary}=    Set Variable
+            ...    Nightly backup completed. File: ${backup_path}. DB stats collected. Email failed: ${err}.
         END
     ELSE
         Log To Console    ℹ️ Gmail credentials not configured — skipping email dispatch.
+        ${summary}=    Set Variable
+        ...    Nightly backup completed. File: ${backup_path}. DB stats collected. Email skipped (unconfigured).
     END
 
     # Step 4: Audit log
-    ${summary}=    Set Variable
-    ...    Nightly backup completed. File: ${backup_path}. DB stats collected and emailed to IT.
     Write Bot Log    ${summary}    ${metrics}[record_count]    ${EMPTY}
 
     Print Banner    BOT 5 — NIGHTLY DB BACKUP    FINISHED
@@ -114,6 +118,8 @@ Connect To Application Database
     Log To Console    🗄 Connecting to ${DB_TYPE} DB...
     IF    '${DB_TYPE}' == 'sqlite'
         Connect To Database    ${DB_MODULE}    ${DB_PATH}
+    Execute Sql String    PRAGMA journal_mode=WAL
+    Execute Sql String    PRAGMA busy_timeout=5000
     ELSE
         Connect To Database    psycopg2    ${PG_NAME}    ${PG_USER}    ${PG_PASS}    ${PG_HOST}    ${PG_PORT}
     END
@@ -312,6 +318,14 @@ Write Bot Log
         ...        ('${BOT_NAME}', '${status}', '${now}', '${now}',
         ...         '${summary}', ${records}, '${errors}', NULL)
         Execute Sql String    ${sql_log}
+
+        # Granular log for Live Automation Hub
+        ${act_sql}=    Catenate    SEPARATOR=\n
+        ...    INSERT INTO core_botactivitylog
+        ...        (bot_name, action, target, timestamp, status, detail)
+        ...    VALUES
+        ...        ('${BOT_NAME}', '${summary}', 'db.sqlite3', '${now}', '${status}', 'Nightly backup via Robot Framework')
+        Execute Sql String    ${act_sql}
         Log To Console    📝 Audit log written.
     EXCEPT    AS    ${err}
         Log To Console    ⚠️ Could not write audit log: ${err}
